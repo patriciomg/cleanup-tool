@@ -4,6 +4,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -45,6 +46,7 @@ func main() {
 		benchmark        bool
 		jsonOut          string
 		json             bool
+		format           string
 		dupModeFlag      string
 		progressInterval int
 	)
@@ -58,6 +60,7 @@ func main() {
 	flag.BoolVar(&benchmark, "benchmark", false, "Benchmark scan and print throughput to stdout")
 	flag.StringVar(&jsonOut, "json-out", "", "Export scan results to the specified JSON file (implies non-interactive)")
 	flag.BoolVar(&json, "json", false, "Export scan results as JSON to stdout (implies non-interactive)")
+	flag.StringVar(&format, "format", "json", "Export format for -json/-json-out: json, csv, yaml")
 	flag.StringVar(&dupModeFlag, "dup-mode", cfg.DupMode, "Duplicate detection mode: first10mb, sample, full, smart")
 	flag.IntVar(&progressInterval, "progress-interval", cfg.ProgressInterval, "Report analyzer progress every N files")
 	flag.Parse()
@@ -115,8 +118,16 @@ func main() {
 		os.Exit(1)
 	}
 
+	format = strings.ToLower(format)
+	switch format {
+	case "json", "csv", "yaml":
+	default:
+		fmt.Fprintf(os.Stderr, "invalid format %q; valid: json, csv, yaml\n", format)
+		os.Exit(1)
+	}
+
 	if benchmark || jsonOut != "" || json {
-		runNonInteractive(paths, cfg.IgnorePaths, ignoreHidden, benchmark, jsonOut, json)
+		runNonInteractive(paths, cfg.IgnorePaths, ignoreHidden, benchmark, jsonOut, json, format)
 		return
 	}
 
@@ -174,7 +185,7 @@ func parseInterspersed(fs *flag.FlagSet, args []string) ([]string, error) {
 	return positionals, nil
 }
 
-func runNonInteractive(paths []string, ignorePaths []string, ignoreHidden bool, benchmark bool, jsonOut string, json bool) {
+func runNonInteractive(paths []string, ignorePaths []string, ignoreHidden bool, benchmark bool, outFile string, stdout bool, format string) {
 	start := time.Now()
 	scanner := analyzer.NewScanner(ignorePaths, ignoreHidden, 0)
 	roots, err := scanner.Scan(context.Background(), paths)
@@ -188,19 +199,27 @@ func runNonInteractive(paths []string, ignorePaths []string, ignoreHidden bool, 
 		printBenchmarkStats(paths, roots, elapsed)
 	}
 
-	if jsonOut != "" {
-		if err := analyzer.ExportJSON(roots, jsonOut); err != nil {
-			fmt.Fprintf(os.Stderr, "json export error: %v\n", err)
-			os.Exit(1)
-		}
-		fmt.Printf("Exported scan results to %s\n", jsonOut)
+	if outFile == "" && !stdout {
+		return
 	}
 
-	if json {
-		if err := analyzer.ExportJSONWriter(roots, os.Stdout); err != nil {
-			fmt.Fprintf(os.Stderr, "json export error: %v\n", err)
+	var w io.Writer = os.Stdout
+	if outFile != "" {
+		file, err := os.Create(outFile)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "export error: %v\n", err)
 			os.Exit(1)
 		}
+		defer file.Close()
+		w = file
+	}
+
+	if err := analyzer.Export(roots, w, format); err != nil {
+		fmt.Fprintf(os.Stderr, "export error: %v\n", err)
+		os.Exit(1)
+	}
+	if outFile != "" {
+		fmt.Printf("Exported scan results to %s\n", outFile)
 	}
 }
 

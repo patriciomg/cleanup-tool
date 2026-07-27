@@ -1,6 +1,8 @@
 package analyzer
 
 import (
+	"bytes"
+	"encoding/csv"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -78,5 +80,59 @@ func TestExportJSONWriter(t *testing.T) {
 	}
 	if len(roots[0].Children) != 1 {
 		t.Fatalf("expected 1 child, got %d", len(roots[0].Children))
+	}
+	if roots[0].Children[0].Name != "child.txt" {
+		t.Fatalf("expected child name %q, got %q", "child.txt", roots[0].Children[0].Name)
+	}
+}
+
+func TestExportCSV(t *testing.T) {
+	root := &Entry{Name: "root", Path: "/tmp/root", IsDir: true, Size: 100}
+	child := &Entry{Name: "child.txt", Path: "/tmp/root/child.txt", Size: 100}
+	root.AddChild(child)
+
+	var buf bytes.Buffer
+	if err := Export([]*Entry{root}, &buf, "csv"); err != nil {
+		t.Fatalf("Export CSV error: %v", err)
+	}
+
+	reader := csv.NewReader(&buf)
+	records, err := reader.ReadAll()
+	if err != nil {
+		t.Fatalf("reading CSV: %v", err)
+	}
+	if len(records) != 3 {
+		t.Fatalf("expected 3 CSV rows (header + 2 entries), got %d", len(records))
+	}
+	if records[0][0] != "Path" {
+		t.Fatalf("expected header Path, got %s", records[0][0])
+	}
+	if records[1][0] != "/tmp/root" {
+		t.Fatalf("expected /tmp/root, got %s", records[1][0])
+	}
+	if records[2][0] != "/tmp/root/child.txt" {
+		t.Fatalf("expected /tmp/root/child.txt, got %s", records[2][0])
+	}
+}
+
+func TestExportYAML(t *testing.T) {
+	root := &Entry{Name: "root", Path: "/tmp/root", IsDir: true, Size: 100}
+	child := &Entry{Name: "child.txt", Path: "/tmp/root/child.txt", Size: 100}
+	root.AddChild(child)
+
+	var buf bytes.Buffer
+	if err := Export([]*Entry{root}, &buf, "yaml"); err != nil {
+		t.Fatalf("Export YAML error: %v", err)
+	}
+	if !strings.Contains(buf.String(), "root") {
+		t.Fatalf("expected YAML to contain root")
+	}
+}
+
+func TestExportUnknownFormat(t *testing.T) {
+	root := &Entry{Name: "root", Path: "/tmp/root", IsDir: true}
+	err := Export([]*Entry{root}, &bytes.Buffer{}, "xml")
+	if err == nil {
+		t.Fatal("expected error for unknown format, got nil")
 	}
 }

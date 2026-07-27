@@ -20,7 +20,7 @@ type Entry struct {
 	IsDir      bool                `json:"isDir"`
 	Category   categories.Category `json:"category"`
 	Children   []*Entry            `json:"children,omitempty"`
-	Parent     *Entry              `json:"-"`
+	Parent     *Entry              `json:"-" yaml:"-"`
 	NumFiles   int64               `json:"numFiles"`
 	NumDirs    int64               `json:"numDirs"`
 	Scanned    bool                `json:"scanned"`
