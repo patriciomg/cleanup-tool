@@ -61,8 +61,8 @@ func main() {
 	flag.BoolVar(&benchmark, "benchmark", false, "Benchmark scan and print throughput to stdout")
 	flag.StringVar(&jsonOut, "json-out", "", "Export scan results to the specified JSON file (implies non-interactive)")
 	flag.BoolVar(&json, "json", false, "Export scan results as JSON to stdout (implies non-interactive)")
-	flag.StringVar(&format, "format", "json", "Export format for -json/-json-out: json, csv, yaml")
-	flag.StringVar(&csvColumns, "csv-columns", "", "Comma-separated CSV column names (default: all columns)")
+	flag.StringVar(&format, "format", "json", "Export format for -json/-json-out: json, csv, tsv, yaml")
+	flag.StringVar(&csvColumns, "csv-columns", "", "Comma-separated CSV/TSV column names (default: all columns)")
 	flag.StringVar(&dupModeFlag, "dup-mode", cfg.DupMode, "Duplicate detection mode: first10mb, sample, full, smart")
 	flag.IntVar(&progressInterval, "progress-interval", cfg.ProgressInterval, "Report analyzer progress every N files")
 	flag.Parse()
@@ -122,9 +122,9 @@ func main() {
 
 	format = strings.ToLower(format)
 	switch format {
-	case "json", "csv", "yaml":
+	case "json", "csv", "tsv", "yaml":
 	default:
-		fmt.Fprintf(os.Stderr, "invalid format %q; valid: json, csv, yaml\n", format)
+		fmt.Fprintf(os.Stderr, "invalid format %q; valid: json, csv, tsv, yaml\n", format)
 		os.Exit(1)
 	}
 
@@ -221,8 +221,14 @@ func runNonInteractive(paths []string, ignorePaths []string, ignoreHidden bool, 
 		w = file
 	}
 
-	if format == "csv" && len(csvColumns) > 0 {
-		if err := analyzer.NewCSVExporter(csvColumns).Export(roots, w); err != nil {
+	if (format == "csv" || format == "tsv") && len(csvColumns) > 0 {
+		var exporter analyzer.Exporter
+		if format == "tsv" {
+			exporter = analyzer.NewTSVExporter(csvColumns)
+		} else {
+			exporter = analyzer.NewCSVExporter(csvColumns)
+		}
+		if err := exporter.Export(roots, w); err != nil {
 			fmt.Fprintf(os.Stderr, "export error: %v\n", err)
 			os.Exit(1)
 		}

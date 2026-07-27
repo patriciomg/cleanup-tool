@@ -19,6 +19,7 @@ type Exporter interface {
 var exporters = map[string]Exporter{
 	"json": JSONExporter{},
 	"csv":  &CSVExporter{},
+	"tsv":  &TSVExporter{},
 	"yaml": YAMLExporter{},
 }
 
@@ -95,7 +96,31 @@ func NewCSVExporter(columns []string) *CSVExporter {
 
 // Export implements Exporter for CSV.
 func (c *CSVExporter) Export(roots []*Entry, w io.Writer) error {
-	columns := c.Columns
+	return writeDelimited(roots, c.Columns, csv.NewWriter(w))
+}
+
+// TSVExporter flattens the Entry tree into tab-separated rows.
+type TSVExporter struct {
+	// Columns is the ordered list of column names to export. If empty,
+	// DefaultCSVColumns is used.
+	Columns []string
+}
+
+// NewTSVExporter creates a TSV exporter using the given columns. If columns is
+// empty, the default columns are used.
+func NewTSVExporter(columns []string) *TSVExporter {
+	return &TSVExporter{Columns: columns}
+}
+
+// Export implements Exporter for TSV.
+func (t *TSVExporter) Export(roots []*Entry, w io.Writer) error {
+	tabWriter := csv.NewWriter(w)
+	tabWriter.Comma = '\t'
+	return writeDelimited(roots, t.Columns, tabWriter)
+}
+
+// writeDelimited flattens the Entry tree into delimited rows using writer.
+func writeDelimited(roots []*Entry, columns []string, writer *csv.Writer) error {
 	if len(columns) == 0 {
 		columns = DefaultCSVColumns
 	}
@@ -103,7 +128,6 @@ func (c *CSVExporter) Export(roots []*Entry, w io.Writer) error {
 		return err
 	}
 
-	writer := csv.NewWriter(w)
 	defer writer.Flush()
 
 	if err := writer.Write(columns); err != nil {

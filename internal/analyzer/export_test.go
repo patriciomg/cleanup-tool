@@ -137,6 +137,53 @@ func TestExportUnknownFormat(t *testing.T) {
 	}
 }
 
+func TestExportTSV(t *testing.T) {
+	root := &Entry{Name: "root", Path: "/tmp/root", IsDir: true, Size: 100}
+	child := &Entry{Name: "child.txt", Path: "/tmp/root/child.txt", Size: 100}
+	root.AddChild(child)
+
+	var buf bytes.Buffer
+	if err := Export([]*Entry{root}, &buf, "tsv"); err != nil {
+		t.Fatalf("Export TSV error: %v", err)
+	}
+
+	lines := strings.Split(strings.TrimSpace(buf.String()), "\n")
+	if len(lines) != 3 {
+		t.Fatalf("expected 3 lines, got %d", len(lines))
+	}
+	if !strings.Contains(lines[0], "\t") {
+		t.Fatalf("expected tab separator in header: %s", lines[0])
+	}
+	if !strings.Contains(lines[1], "root") {
+		t.Fatalf("expected root row, got %s", lines[1])
+	}
+}
+
+func TestTSVExporterCustomColumns(t *testing.T) {
+	root := &Entry{Name: "root", Path: "/tmp/root", IsDir: true, Size: 100}
+	child := &Entry{Name: "child.txt", Path: "/tmp/root/child.txt", Size: 100}
+	root.AddChild(child)
+
+	var buf bytes.Buffer
+	exporter := &TSVExporter{Columns: []string{"Name", "Size"}}
+	if err := exporter.Export([]*Entry{root}, &buf); err != nil {
+		t.Fatalf("Export custom columns error: %v", err)
+	}
+
+	reader := csv.NewReader(&buf)
+	reader.Comma = '\t'
+	records, err := reader.ReadAll()
+	if err != nil {
+		t.Fatalf("reading TSV: %v", err)
+	}
+	if len(records) != 3 {
+		t.Fatalf("expected 3 rows, got %d", len(records))
+	}
+	if records[0][0] != "Name" || records[0][1] != "Size" {
+		t.Fatalf("expected header [Name Size], got %v", records[0])
+	}
+}
+
 func TestCSVExporterCustomColumns(t *testing.T) {
 	root := &Entry{Name: "root", Path: "/tmp/root", IsDir: true, Size: 100}
 	child := &Entry{Name: "child.txt", Path: "/tmp/root/child.txt", Size: 100}
