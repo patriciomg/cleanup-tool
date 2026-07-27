@@ -18,7 +18,7 @@ type Exporter interface {
 
 var exporters = map[string]Exporter{
 	"json": JSONExporter{},
-	"csv":  CSVExporter{},
+	"csv":  &CSVExporter{},
 	"yaml": YAMLExporter{},
 }
 
@@ -72,35 +72,50 @@ func (YAMLExporter) Export(roots []*Entry, w io.Writer) error {
 	return encoder.Encode(roots)
 }
 
+// DefaultCSVColumns is the default set of columns written by CSVExporter.
+var DefaultCSVColumns = []string{"Path", "Name", "Size", "Usage", "ModTime", "AccessTime", "Mode", "IsDir", "Category", "NumFiles", "NumDirs", "Scanned"}
+
+// CSVColumns returns the list of supported CSV column names.
+func CSVColumns() []string {
+	return []string{"Path", "Name", "Size", "Usage", "ModTime", "AccessTime", "Mode", "IsDir", "Category", "NumFiles", "NumDirs", "Scanned"}
+}
+
 // CSVExporter flattens the Entry tree into CSV rows.
-type CSVExporter struct{}
+type CSVExporter struct {
+	// Columns is the ordered list of column names to export. If empty,
+	// DefaultCSVColumns is used.
+	Columns []string
+}
+
+// NewCSVExporter creates a CSV exporter using the given columns. If columns is
+// empty, the default columns are used.
+func NewCSVExporter(columns []string) *CSVExporter {
+	return &CSVExporter{Columns: columns}
+}
 
 // Export implements Exporter for CSV.
-func (CSVExporter) Export(roots []*Entry, w io.Writer) error {
+func (c *CSVExporter) Export(roots []*Entry, w io.Writer) error {
+	columns := c.Columns
+	if len(columns) == 0 {
+		columns = DefaultCSVColumns
+	}
+	if err := validateCSVColumns(columns); err != nil {
+		return err
+	}
+
 	writer := csv.NewWriter(w)
 	defer writer.Flush()
 
-	header := []string{"Path", "Name", "Size", "Usage", "ModTime", "AccessTime", "Mode", "IsDir", "Category", "NumFiles", "NumDirs", "Scanned"}
-	if err := writer.Write(header); err != nil {
+	if err := writer.Write(columns); err != nil {
 		return err
 	}
 
 	var walk func(entries []*Entry) error
 	walk = func(entries []*Entry) error {
 		for _, e := range entries {
-			row := []string{
-				e.Path,
-				e.Name,
-				strconv.FormatInt(e.Size, 10),
-				strconv.FormatInt(e.Usage, 10),
-				e.ModTime.Format("2006-01-02T15:04:05"),
-				e.AccessTime.Format("2006-01-02T15:04:05"),
-				e.Mode.String(),
-				strconv.FormatBool(e.IsDir),
-				string(e.Category),
-				strconv.FormatInt(e.NumFiles, 10),
-				strconv.FormatInt(e.NumDirs, 10),
-				strconv.FormatBool(e.Scanned),
+			row := make([]string, len(columns))
+			for i, col := range columns {
+				row[i] = csvColumnValue(e, col)
 			}
 			if err := writer.Write(row); err != nil {
 				return err
@@ -112,4 +127,48 @@ func (CSVExporter) Export(roots []*Entry, w io.Writer) error {
 		return nil
 	}
 	return walk(roots)
+}
+
+func validateCSVColumns(columns []string) error {
+	allowed := map[string]struct{}{}
+	for _, c := range CSVColumns() {
+		allowed[c] = struct{}{}
+	}
+	for _, c := range columns {
+		if _, ok := allowed[c]; !ok {
+			return fmt.Errorf("unknown CSV column %q", c)
+		}
+	}
+	return nil
+}
+
+func csvColumnValue(e *Entry, col string) string {
+	switch col {
+	case "Path":
+		return e.Path
+	case "Name":
+		return e.Name
+	case "Size":
+		return strconv.FormatInt(e.Size, 10)
+	case "Usage":
+		return strconv.FormatInt(e.Usage, 10)
+	case "ModTime":
+		return e.ModTime.Format("2006-01-02T15:04:05")
+	case "AccessTime":
+		return e.AccessTime.Format("2006-01-02T15:04:05")
+	case "Mode":
+		return e.Mode.String()
+	case "IsDir":
+		return strconv.FormatBool(e.IsDir)
+	case "Category":
+		return string(e.Category)
+	case "NumFiles":
+		return strconv.FormatInt(e.NumFiles, 10)
+	case "NumDirs":
+		return strconv.FormatInt(e.NumDirs, 10)
+	case "Scanned":
+		return strconv.FormatBool(e.Scanned)
+	default:
+		return ""
+	}
 }

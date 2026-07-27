@@ -47,6 +47,7 @@ func main() {
 		jsonOut          string
 		json             bool
 		format           string
+		csvColumns       string
 		dupModeFlag      string
 		progressInterval int
 	)
@@ -61,6 +62,7 @@ func main() {
 	flag.StringVar(&jsonOut, "json-out", "", "Export scan results to the specified JSON file (implies non-interactive)")
 	flag.BoolVar(&json, "json", false, "Export scan results as JSON to stdout (implies non-interactive)")
 	flag.StringVar(&format, "format", "json", "Export format for -json/-json-out: json, csv, yaml")
+	flag.StringVar(&csvColumns, "csv-columns", "", "Comma-separated CSV column names (default: all columns)")
 	flag.StringVar(&dupModeFlag, "dup-mode", cfg.DupMode, "Duplicate detection mode: first10mb, sample, full, smart")
 	flag.IntVar(&progressInterval, "progress-interval", cfg.ProgressInterval, "Report analyzer progress every N files")
 	flag.Parse()
@@ -127,7 +129,12 @@ func main() {
 	}
 
 	if benchmark || jsonOut != "" || json {
-		runNonInteractive(paths, cfg.IgnorePaths, ignoreHidden, benchmark, jsonOut, json, format)
+		columns, err := parseCSVColumns(csvColumns)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "csv-columns error: %v\n", err)
+			os.Exit(1)
+		}
+		runNonInteractive(paths, cfg.IgnorePaths, ignoreHidden, benchmark, jsonOut, json, format, columns)
 		return
 	}
 
@@ -185,7 +192,7 @@ func parseInterspersed(fs *flag.FlagSet, args []string) ([]string, error) {
 	return positionals, nil
 }
 
-func runNonInteractive(paths []string, ignorePaths []string, ignoreHidden bool, benchmark bool, outFile string, stdout bool, format string) {
+func runNonInteractive(paths []string, ignorePaths []string, ignoreHidden bool, benchmark bool, outFile string, stdout bool, format string, csvColumns []string) {
 	start := time.Now()
 	scanner := analyzer.NewScanner(ignorePaths, ignoreHidden, 0)
 	roots, err := scanner.Scan(context.Background(), paths)
@@ -214,13 +221,46 @@ func runNonInteractive(paths []string, ignorePaths []string, ignoreHidden bool, 
 		w = file
 	}
 
-	if err := analyzer.Export(roots, w, format); err != nil {
-		fmt.Fprintf(os.Stderr, "export error: %v\n", err)
-		os.Exit(1)
+	if format == "csv" && len(csvColumns) > 0 {
+		if err := analyzer.NewCSVExporter(csvColumns).Export(roots, w); err != nil {
+			fmt.Fprintf(os.Stderr, "export error: %v\n", err)
+			os.Exit(1)
+		}
+	} else {
+		if err := analyzer.Export(roots, w, format); err != nil {
+			fmt.Fprintf(os.Stderr, "export error: %v\n", err)
+			os.Exit(1)
+		}
 	}
 	if outFile != "" {
 		fmt.Printf("Exported scan results to %s\n", outFile)
 	}
+}
+
+func parseCSVColumns(s string) ([]string, error) {
+	if s == "" {
+		return nil, nil
+	}
+	// Build a case-insensitive map of supported CSV column names.
+	allowed := map[string]string{}
+	for _, c := range analyzer.CSVColumns() {
+		allowed[strings.ToLower(c)] = c
+	}
+
+	parts := strings.Split(s, ",")
+	var cols []string
+	for _, p := range parts {
+		p = strings.TrimSpace(p)
+		if p == "" {
+			continue
+		}
+		if canon, ok := allowed[strings.ToLower(p)]; ok {
+			cols = append(cols, canon)
+		} else {
+			return nil, fmt.Errorf("unknown CSV column %q", p)
+		}
+	}
+	return cols, nil
 }
 
 func printBenchmarkStats(paths []string, roots []*analyzer.Entry, elapsed time.Duration) {

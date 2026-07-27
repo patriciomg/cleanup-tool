@@ -136,3 +136,41 @@ func TestExportUnknownFormat(t *testing.T) {
 		t.Fatal("expected error for unknown format, got nil")
 	}
 }
+
+func TestCSVExporterCustomColumns(t *testing.T) {
+	root := &Entry{Name: "root", Path: "/tmp/root", IsDir: true, Size: 100}
+	child := &Entry{Name: "child.txt", Path: "/tmp/root/child.txt", Size: 100}
+	root.AddChild(child)
+
+	var buf bytes.Buffer
+	exporter := NewCSVExporter([]string{"Name", "Size"})
+	if err := exporter.Export([]*Entry{root}, &buf); err != nil {
+		t.Fatalf("Export custom columns error: %v", err)
+	}
+
+	reader := csv.NewReader(&buf)
+	records, err := reader.ReadAll()
+	if err != nil {
+		t.Fatalf("reading CSV: %v", err)
+	}
+	if len(records) != 3 {
+		t.Fatalf("expected 3 rows, got %d", len(records))
+	}
+	if records[0][0] != "Name" || records[0][1] != "Size" {
+		t.Fatalf("expected header [Name Size], got %v", records[0])
+	}
+	if records[1][0] != "root" || records[1][1] != "100" {
+		t.Fatalf("expected root row, got %v", records[1])
+	}
+	if records[2][0] != "child.txt" || records[2][1] != "100" {
+		t.Fatalf("expected child row, got %v", records[2])
+	}
+}
+
+func TestCSVExporterInvalidColumn(t *testing.T) {
+	root := &Entry{Name: "root", Path: "/tmp/root", IsDir: true}
+	exporter := NewCSVExporter([]string{"Invalid"})
+	if err := exporter.Export([]*Entry{root}, &bytes.Buffer{}); err == nil {
+		t.Fatal("expected error for invalid column, got nil")
+	}
+}
