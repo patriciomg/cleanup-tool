@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-07-27
+
 ### Added
 
 - **Saved rules** (`rules` subcommand) for reusable cleanup presets with create, list, show, edit, delete, and run commands.
@@ -61,3 +63,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Categorization of common space hogs (Docker, LLM models, build artifacts, dependencies, media, archives, logs, caches, downloads, documents, applications, git repos).
 - Bubble Tea-based TUI with size-sorted file navigation, directory drill-down, marking, trash, move to external drive, and restore.
 - Configurable ignore paths via `~/.config/cleanup-tool/config.json`.
+
+[Unreleased]: https://github.com/patriciomg/cleanup-tool/compare/v0.2.0...main
+[0.2.0]: https://github.com/patriciomg/cleanup-tool/compare/v0.1.0...v0.2.0
+[0.1.0]: https://github.com/patriciomg/cleanup-tool/releases/tag/v0.1.0
