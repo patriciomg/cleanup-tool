@@ -522,11 +522,11 @@ gpg --verify cleanup-tool-<version>-darwin-universal.tar.gz.asc \
 - [x] Mouse and keyboard support in the analyzer summary
 - [x] Benchmark mode (`-benchmark`)
 - [x] Saved rules with non-interactive execution
+- [x] launchd automation for saved rules
 - [x] CI/CD smoke tests and GPG-signed macOS universal releases
 
 ### Coming soon
 
-- [ ] launchd automation for saved rules
 - [ ] LLM registry cleanup (Ollama, Hugging Face cache, LM Studio)
 - [ ] Export scan results to JSON
 - [ ] Native Homebrew formula
