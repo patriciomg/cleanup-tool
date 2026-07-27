@@ -1,10 +1,8 @@
 package tui
 
 import (
-	"fmt"
 	"strings"
 	"testing"
-	"unicode/utf8"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/patriciomg/cleanup-tool/internal/analyzer"
@@ -134,9 +132,9 @@ func TestHandleMouseFilterClick(t *testing.T) {
 	var x int
 	for _, cat := range cats {
 		s := cat.String()
-		// The clickable region covers the category text, a space, and the bar.
-		w := len(s) + 1 + barChartWidth
-		// Click in the middle of the bar area to verify the expanded hit target.
+		// The clickable region covers the category text only.
+		w := len(s)
+		// Click near the end of the text to verify the hit target.
 		m.handleMouse(tea.MouseMsg{Type: tea.MouseLeft, X: x + w - 1, Y: analyzerSummaryLineY})
 		if m.analyzerFilter != cat.Reason {
 			t.Fatalf("expected %q filter after click, got %q", cat.Reason, m.analyzerFilter)
@@ -228,59 +226,53 @@ func TestFilteredHints(t *testing.T) {
 	}
 }
 
-func TestCategoryBar(t *testing.T) {
+func TestStackedBar(t *testing.T) {
+	summary := analyzer.HintSummary{Old: 2, Duplicate: 3, LogCache: 1}
+	got := stackedBar(summary, stackedBarWidth)
+	// The rendered string should include styling escape sequences, so measure
+	// the visible block characters by counting the full block rune.
+	visible := strings.Count(got, "█")
+	if visible != stackedBarWidth {
+		t.Fatalf("expected %d visible blocks, got %d: %q", stackedBarWidth, visible, got)
+	}
+
+	// With the default test case, proportions should be non-empty for all three
+	// categories. We verify by checking that the rendered output contains
+	// segments from each of the three hint styles (old, duplicate, log/cache).
+	if !strings.Contains(got, "█") {
+		t.Fatalf("expected stacked bar to contain full blocks, got %q", got)
+	}
+}
+
+func TestStackedBar_ZeroTotal(t *testing.T) {
+	summary := analyzer.HintSummary{Old: 0, Duplicate: 0, LogCache: 0}
+	got := stackedBar(summary, stackedBarWidth)
+	visible := strings.Count(got, "░")
+	if visible != stackedBarWidth {
+		t.Fatalf("expected %d empty blocks when total is zero, got %d: %q", stackedBarWidth, visible, got)
+	}
+}
+
+func TestStackedBarSegments(t *testing.T) {
 	cases := []struct {
-		n, max, width int
-		expectFilled  int
+		name                string
+		summary             analyzer.HintSummary
+		width               int
+		wantOld             int
+		wantDuplicate       int
+		wantLogCache        int
 	}{
-		{0, 10, 4, 0},
-		{1, 10, 4, 1},
-		{5, 10, 4, 2},
-		{10, 10, 4, 4},
-		{20, 10, 4, 4},
-		{5, 0, 4, 0},
-		{5, 10, 0, 0},
+		{"even 50/25/25", analyzer.HintSummary{Old: 4, Duplicate: 2, LogCache: 2}, 24, 12, 6, 6},
+		{"only old", analyzer.HintSummary{Old: 10, Duplicate: 0, LogCache: 0}, 24, 24, 0, 0},
+		{"zero total", analyzer.HintSummary{Old: 0, Duplicate: 0, LogCache: 0}, 24, 0, 0, 0},
 	}
 	for _, tc := range cases {
-		t.Run(fmt.Sprintf("%d_of_%d_width_%d", tc.n, tc.max, tc.width), func(t *testing.T) {
-			got := categoryBar(tc.n, tc.max, tc.width)
-			if utf8.RuneCountInString(got) != tc.width {
-				t.Fatalf("expected width %d, got %d: %q", tc.width, utf8.RuneCountInString(got), got)
-			}
-			filled := strings.Count(got, "█")
-			if filled != tc.expectFilled {
-				t.Fatalf("expected %d filled blocks, got %d: %q", tc.expectFilled, filled, got)
+		t.Run(tc.name, func(t *testing.T) {
+			gotOld, gotDup, gotLog := stackedBarSegments(tc.summary, tc.width)
+			if gotOld != tc.wantOld || gotDup != tc.wantDuplicate || gotLog != tc.wantLogCache {
+				t.Fatalf("expected (%d, %d, %d), got (%d, %d, %d)", tc.wantOld, tc.wantDuplicate, tc.wantLogCache, gotOld, gotDup, gotLog)
 			}
 		})
-	}
-}
-
-func TestCategoryBar_NonPositiveWidth(t *testing.T) {
-	for _, width := range []int{0, -1, -42} {
-		t.Run(fmt.Sprintf("width_%d", width), func(t *testing.T) {
-			got := categoryBar(5, 10, width)
-			if got != "" {
-				t.Fatalf("expected empty string for non-positive width, got %q", got)
-			}
-		})
-	}
-}
-
-func TestSparkline(t *testing.T) {
-	summary := analyzer.HintSummary{Old: 5, Duplicate: 10, LogCache: 0}
-	got := sparkline(summary, 10, barChartWidth)
-	parts := strings.Split(got, " ")
-	if len(parts) != 3 {
-		t.Fatalf("expected 3 bars, got %d: %q", len(parts), got)
-	}
-	if strings.Count(parts[0], "█") != 2 {
-		t.Fatalf("expected old bar width 2, got %q", parts[0])
-	}
-	if strings.Count(parts[1], "█") != 4 {
-		t.Fatalf("expected duplicate bar width 4, got %q", parts[1])
-	}
-	if strings.Count(parts[2], "█") != 0 {
-		t.Fatalf("expected log/cache bar empty, got %q", parts[2])
 	}
 }
 

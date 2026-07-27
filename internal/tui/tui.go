@@ -3,6 +3,7 @@ package tui
 import (
 	"context"
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
 	"sort"
@@ -30,8 +31,8 @@ const (
 	// analyzer summary line (header + blank + "Found X hints" + blank).
 	analyzerSummaryLineY = 4
 
-	// barChartWidth is the number of block characters shown for each summary bar.
-	barChartWidth = 4
+	// stackedBarWidth is the total width of the stacked summary bar.
+	stackedBarWidth = 24
 )
 
 type Model struct {
@@ -277,8 +278,8 @@ func (m *Model) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 	var x int
 	for _, cat := range cats {
 		s := cat.String()
-		// The rendered category includes the text, a space, and a fixed-width bar.
-		w := len(s) + 1 + barChartWidth
+		// The clickable region covers the category text only.
+		w := len(s)
 		if msg.X >= x && msg.X < x+w {
 			m.toggleFilter(cat.Reason)
 			return m, nil
@@ -793,7 +794,6 @@ var (
 	summaryStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("#9ece6a")).Bold(true).Underline(true)
 	filterStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("#e0af68")).Bold(true).Underline(true)
 	barStyle      = lipgloss.NewStyle().Foreground(lipgloss.Color("#565f89"))
-	barFillStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("#7aa2f7"))
 )
 
 func (m *Model) View() string {
@@ -960,34 +960,37 @@ func categoryBar(n, max, width int) string {
 	return strings.Repeat("█", filled) + strings.Repeat("░", width-filled)
 }
 
-// maxSummaryCount returns the largest count in the summary.
-func maxSummaryCount(summary analyzer.HintSummary) int {
-	max := summary.Old
-	if summary.Duplicate > max {
-		max = summary.Duplicate
+// stackedBarSegments returns the widths of the old, duplicate, and log/cache
+// segments for a stacked bar of the given total width.
+func stackedBarSegments(summary analyzer.HintSummary, width int) (int, int, int) {
+	total := summary.Old + summary.Duplicate + summary.LogCache
+	if total == 0 {
+		return 0, 0, 0
 	}
-	if summary.LogCache > max {
-		max = summary.LogCache
+
+	wOld := int(math.Round(float64(summary.Old) / float64(total) * float64(width)))
+	wDup := int(math.Round(float64(summary.Duplicate) / float64(total) * float64(width)))
+	wLog := width - wOld - wDup
+
+	// Guard against rounding errors pushing any segment negative.
+	if wLog < 0 {
+		wDup += wLog
+		wLog = 0
 	}
-	return max
+
+	return wOld, wDup, wLog
 }
 
-// sparkline renders a compact bar chart of the three summary counts.
-// Each category gets a bar of the given width, separated by a space.
-func sparkline(summary analyzer.HintSummary, max, width int) string {
-	renderBar := func(count int) string {
-		bar := categoryBar(count, max, width)
-		if count == 0 {
-			return barStyle.Render(bar)
-		}
-		return barFillStyle.Render(bar)
+// stackedBar renders a single stacked bar where each segment is proportional
+// to the count of hints in that category.
+func stackedBar(summary analyzer.HintSummary, width int) string {
+	if summary.Old+summary.Duplicate+summary.LogCache == 0 {
+		return barStyle.Render(strings.Repeat("░", width))
 	}
-	parts := []string{
-		renderBar(summary.Old),
-		renderBar(summary.Duplicate),
-		renderBar(summary.LogCache),
-	}
-	return strings.Join(parts, " ")
+	wOld, wDup, wLog := stackedBarSegments(summary, width)
+	return hintOldStyle.Render(strings.Repeat("█", wOld)) +
+		hintDupStyle.Render(strings.Repeat("█", wDup)) +
+		hintLogStyle.Render(strings.Repeat("█", wLog))
 }
 
 func (m *Model) analyzerView() string {
@@ -1002,7 +1005,6 @@ func (m *Model) analyzerView() string {
 		b.WriteString(fmt.Sprintf("Current: %s\n\n", truncate(m.analyzerProg.CurrentPath, 60)))
 
 		summary := m.analyzerProg.HintsFound
-		maxCount := maxSummaryCount(summary)
 		b.WriteString(fmt.Sprintf("Found so far: %s old %s, %s %s, %s %s\n",
 			summaryStyle.Render(fmt.Sprintf("%d", summary.Old)),
 			pluralize(summary.Old, "file", "files"),
@@ -1011,7 +1013,7 @@ func (m *Model) analyzerView() string {
 			summaryStyle.Render(fmt.Sprintf("%d", summary.LogCache)),
 			pluralize(summary.LogCache, "log/cache", "log/cache"),
 		))
-		b.WriteString("  " + sparkline(summary, maxCount, barChartWidth) + "\n\n")
+		b.WriteString("  " + stackedBar(summary, stackedBarWidth) + "\n\n")
 
 		b.WriteString(formatHelpBar(m.width, []string{"[esc] cancel", "[q] quit"}) + "\n")
 		return b.String()
@@ -1026,25 +1028,23 @@ func (m *Model) analyzerView() string {
 	b.WriteString(fmt.Sprintf("Found %d hints\n\n", len(m.hints)))
 
 	summary := analyzer.SummarizeHints(m.hints)
-	maxCount := maxSummaryCount(summary)
 	cats := m.summaryCategories(summary)
 	renderCat := func(cat summaryCategory) string {
 		s := cat.String()
-		bar := categoryBar(cat.Value, maxCount, barChartWidth)
 		if m.analyzerFilter == cat.Reason {
-			return filterStyle.Render(s) + " " + barFillStyle.Render(bar)
+			return filterStyle.Render(s)
 		}
 		if cat.Value > 0 {
-			return summaryStyle.Render(s) + " " + barFillStyle.Render(bar)
+			return summaryStyle.Render(s)
 		}
-		return s + " " + barStyle.Render(bar)
+		return s
 	}
 	parts := make([]string, len(cats))
 	for i, cat := range cats {
 		parts[i] = renderCat(cat)
 	}
 	b.WriteString(strings.Join(parts, ", ") + "\n")
-	b.WriteString("  " + sparkline(summary, maxCount, barChartWidth) + "\n\n")
+	b.WriteString("  " + stackedBar(summary, stackedBarWidth) + "\n\n")
 
 	filtered := m.filteredHints()
 	b.WriteString(fmt.Sprintf("Showing %d of %d\n", len(filtered), len(m.hints)))
