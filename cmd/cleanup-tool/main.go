@@ -61,7 +61,7 @@ func main() {
 	flag.BoolVar(&showVersion, "version", false, "Show version")
 	flag.BoolVar(&benchmark, "benchmark", false, "Benchmark scan and print throughput to stdout")
 	flag.StringVar(&out, "out", "", "Export scan results to the specified file (implies non-interactive)")
-	flag.StringVar(&jsonOut, "json-out", "", "Export scan results to the specified JSON file (legacy alias for -out with format=json)")
+	flag.StringVar(&jsonOut, "json-out", "", "Deprecated: use -out instead")
 	flag.BoolVar(&json, "json", false, "Export scan results to stdout (implies non-interactive)")
 	flag.StringVar(&format, "format", "json", "Export format for -json/-json-out: json, csv, tsv, yaml")
 	flag.StringVar(&csvColumns, "csv-columns", "", "Comma-separated CSV/TSV column names (default: all columns)")
@@ -129,6 +129,8 @@ func main() {
 		fmt.Fprintf(os.Stderr, "invalid format %q; valid: json, csv, tsv, yaml\n", format)
 		os.Exit(1)
 	}
+
+	maybeWarnDeprecatedJSONOut(os.Stderr, jsonOut)
 
 	out = effectiveOutputFile(out, jsonOut)
 
@@ -244,6 +246,14 @@ func runNonInteractive(paths []string, ignorePaths []string, ignoreHidden bool, 
 	}
 	if outFile != "" {
 		fmt.Printf("Exported scan results to %s\n", outFile)
+	}
+}
+
+// maybeWarnDeprecatedJSONOut writes a deprecation warning to w when jsonOut
+// is set.
+func maybeWarnDeprecatedJSONOut(w io.Writer, jsonOut string) {
+	if jsonOut != "" {
+		fmt.Fprintln(w, "warning: -json-out is deprecated; use -out instead")
 	}
 }
 

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"slices"
 	"testing"
 )
@@ -22,6 +23,22 @@ func TestEffectiveOutputFile(t *testing.T) {
 		if got != tc.want {
 			t.Fatalf("effectiveOutputFile(%q, %q) = %q, want %q", tc.out, tc.jsonOut, got, tc.want)
 		}
+	}
+}
+
+func TestMaybeWarnDeprecatedJSONOut(t *testing.T) {
+	var b bytes.Buffer
+	maybeWarnDeprecatedJSONOut(&b, "")
+	if b.String() != "" {
+		t.Fatalf("expected no warning when jsonOut is empty, got %q", b.String())
+	}
+
+	b.Reset()
+	maybeWarnDeprecatedJSONOut(&b, "/tmp/legacy.json")
+	got := b.String()
+	want := "warning: -json-out is deprecated; use -out instead\n"
+	if got != want {
+		t.Fatalf("expected warning %q, got %q", want, got)
 	}
 }
 

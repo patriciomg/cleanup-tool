@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `-out` flag as a format-agnostic alias for writing scan exports (JSON, CSV, TSV, YAML) to a file.
+- Test coverage for `maybeWarnDeprecatedJSONOut`.
+
+### Deprecated
+
+- `-json-out` is now deprecated in favor of `-out`. A warning is printed to stderr when `-json-out` is used.
+
 ## [0.2.0] - 2026-07-27
 
 ### Added
