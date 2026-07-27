@@ -94,6 +94,59 @@ make watch-test
 | `-format` | Export format: `json`, `csv`, `tsv`, `yaml`. Defaults to `json`; auto-detected from `-out` extension when omitted. | `json` |
 | `-csv-columns` | Comma-separated CSV/TSV column names | `""` |
 
+## Exporting results
+
+You can export a non-interactive scan to several formats. The format is controlled by `-format` and can be auto-detected from the `-out` file extension.
+
+### JSON
+
+```bash
+# Auto-detected from .json extension
+./cleanup-tool -out /tmp/scan.json -paths /tmp
+
+# Or explicitly
+./cleanup-tool -format json -out /tmp/scan.json -paths /tmp
+```
+
+### CSV
+
+```bash
+# Auto-detected from .csv extension
+./cleanup-tool -out /tmp/scan.csv -paths /tmp
+
+# Select only specific columns
+./cleanup-tool -format csv -csv-columns "Name,Size" -out /tmp/scan.csv -paths /tmp
+```
+
+### TSV
+
+```bash
+./cleanup-tool -format tsv -out /tmp/scan.tsv -paths /tmp
+```
+
+### YAML
+
+```bash
+./cleanup-tool -format yaml -out /tmp/scan.yaml -paths /tmp
+```
+
+### Stream to stdout
+
+Use `-stdout` (or `-json`) to write the exported format to stdout instead of a file:
+
+```bash
+./cleanup-tool -stdout -format csv -paths /tmp > scan.csv
+./cleanup-tool -stdout -format yaml -paths /tmp
+```
+
+### Unsupported extensions
+
+If `-out` has an extension that is not `.json`, `.csv`, `.tsv`, `.yaml`, or `.yml`, you must specify `-format` explicitly:
+
+```bash
+./cleanup-tool -format json -out /tmp/scan.dat -paths /tmp
+```
+
 ## Saved rules
 
 Rules are reusable cleanup presets stored in `~/.config/cleanup-tool/rules.json`.
