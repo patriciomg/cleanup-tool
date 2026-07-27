@@ -26,6 +26,9 @@ func main() {
 		case "schedule":
 			handleScheduleCmd(os.Args[2:])
 			return
+		case "models":
+			handleModelsCmd(os.Args[2:])
+			return
 		}
 	}
 

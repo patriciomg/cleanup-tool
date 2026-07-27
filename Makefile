@@ -115,9 +115,9 @@ release-clean-old: ## Remove all but the most recent release tarball in dist/
 			echo "No tarballs found in $(DIST_DIR)."; \
 			exit 0; \
 		fi; \
-		kept=$$(echo "$$tarballs" | head -n 1); \
+		kept=$$(printf '%s\n' "$$tarballs" | head -n 1); \
 		echo "Keeping: $$kept"; \
-		echo "$$tarballs" | tail -n +2 | while read -r old; do \
+		printf '%s\n' "$$tarballs" | tail -n +2 | while read -r old; do \
 			echo "Removing: $$old"; \
 			rm -f "$$old"; \
 		done; \
