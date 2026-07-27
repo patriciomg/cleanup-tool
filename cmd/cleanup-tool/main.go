@@ -44,6 +44,7 @@ func main() {
 		externalFlag     string
 		showVersion      bool
 		benchmark        bool
+		out              string
 		jsonOut          string
 		json             bool
 		format           string
@@ -59,8 +60,9 @@ func main() {
 	flag.Var(ignoreHiddenFlag, "ignore-hidden", "Ignore hidden files and directories")
 	flag.BoolVar(&showVersion, "version", false, "Show version")
 	flag.BoolVar(&benchmark, "benchmark", false, "Benchmark scan and print throughput to stdout")
-	flag.StringVar(&jsonOut, "json-out", "", "Export scan results to the specified JSON file (implies non-interactive)")
-	flag.BoolVar(&json, "json", false, "Export scan results as JSON to stdout (implies non-interactive)")
+	flag.StringVar(&out, "out", "", "Export scan results to the specified file (implies non-interactive)")
+	flag.StringVar(&jsonOut, "json-out", "", "Export scan results to the specified JSON file (legacy alias for -out with format=json)")
+	flag.BoolVar(&json, "json", false, "Export scan results to stdout (implies non-interactive)")
 	flag.StringVar(&format, "format", "json", "Export format for -json/-json-out: json, csv, tsv, yaml")
 	flag.StringVar(&csvColumns, "csv-columns", "", "Comma-separated CSV/TSV column names (default: all columns)")
 	flag.StringVar(&dupModeFlag, "dup-mode", cfg.DupMode, "Duplicate detection mode: first10mb, sample, full, smart")
@@ -128,13 +130,15 @@ func main() {
 		os.Exit(1)
 	}
 
-	if benchmark || jsonOut != "" || json {
+	out = effectiveOutputFile(out, jsonOut)
+
+	if benchmark || out != "" || json {
 		columns, err := parseCSVColumns(csvColumns)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "csv-columns error: %v\n", err)
 			os.Exit(1)
 		}
-		runNonInteractive(paths, cfg.IgnorePaths, ignoreHidden, benchmark, jsonOut, json, format, columns)
+		runNonInteractive(paths, cfg.IgnorePaths, ignoreHidden, benchmark, out, json, format, columns)
 		return
 	}
 
@@ -241,6 +245,15 @@ func runNonInteractive(paths []string, ignorePaths []string, ignoreHidden bool, 
 	if outFile != "" {
 		fmt.Printf("Exported scan results to %s\n", outFile)
 	}
+}
+
+// effectiveOutputFile returns the output file to use. If out is empty and
+// jsonOut is set, jsonOut is used as a legacy alias.
+func effectiveOutputFile(out, jsonOut string) string {
+	if out == "" && jsonOut != "" {
+		return jsonOut
+	}
+	return out
 }
 
 func parseCSVColumns(s string) ([]string, error) {

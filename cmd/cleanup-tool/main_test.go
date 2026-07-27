@@ -5,6 +5,26 @@ import (
 	"testing"
 )
 
+func TestEffectiveOutputFile(t *testing.T) {
+	cases := []struct {
+		out     string
+		jsonOut string
+		want    string
+	}{
+		{"", "", ""},
+		{"/tmp/out.csv", "", "/tmp/out.csv"},
+		{"", "/tmp/legacy.json", "/tmp/legacy.json"},
+		{"/tmp/out.csv", "/tmp/legacy.json", "/tmp/out.csv"},
+	}
+
+	for _, tc := range cases {
+		got := effectiveOutputFile(tc.out, tc.jsonOut)
+		if got != tc.want {
+			t.Fatalf("effectiveOutputFile(%q, %q) = %q, want %q", tc.out, tc.jsonOut, got, tc.want)
+		}
+	}
+}
+
 func TestParseCSVColumns(t *testing.T) {
 	cases := []struct {
 		input   string
