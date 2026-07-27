@@ -22,6 +22,7 @@ import (
 	"github.com/patriciomg/cleanup-tool/internal/actions"
 	"github.com/patriciomg/cleanup-tool/internal/analyzer"
 	"github.com/patriciomg/cleanup-tool/internal/docker"
+	"github.com/patriciomg/cleanup-tool/internal/tui/common"
 )
 
 // viewState distinguishes the main browser, analyzer, and Docker views.
@@ -223,7 +224,7 @@ func (m *Model) handleScanResult(msg scanMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	m.roots = msg.roots
-	sortTree(m.roots)
+	common.SortTree(m.roots)
 	if len(m.roots) > 0 {
 		m.current = m.roots[0]
 	}
@@ -575,21 +576,10 @@ func sortedChildren(children []*analyzer.Entry) []*analyzer.Entry {
 	return out
 }
 
-func sortTree(entries []*analyzer.Entry) {
-	for _, e := range entries {
-		if e.IsDir && len(e.Children) > 0 {
-			sort.Slice(e.Children, func(i, j int) bool {
-				return e.Children[i].Size > e.Children[j].Size
-			})
-			sortTree(e.Children)
-		}
-	}
-}
-
 // View implements tea.Model.
 func (m *Model) View() string {
 	if m.err != nil {
-		return dangerStyle.Render("Error: "+m.err.Error()) + "\nq to quit\n"
+		return common.DangerStyle.Render("Error: "+m.err.Error()) + "\nq to quit\n"
 	}
 	if m.scanning {
 		return m.scanView()
@@ -607,18 +597,18 @@ func (m *Model) View() string {
 	}
 
 	var b strings.Builder
-	b.WriteString(headerStyle.Render("Dua-style Browser"))
+	b.WriteString(common.HeaderStyle.Render("Dua-style Browser"))
 	if m.current != nil {
-		b.WriteString(fmt.Sprintf("  %s  total %s\n", currentPathStyle.Render(truncate(m.current.Path, 60)), analyzer.PrettySize(m.current.Size)))
+		b.WriteString(fmt.Sprintf("  %s  total %s\n", common.CurrentPathStyle.Render(common.Truncate(m.current.Path, 60)), analyzer.PrettySize(m.current.Size)))
 	}
 	if m.msg != "" {
-		b.WriteString(msgStyle.Render(m.msg) + "\n")
+		b.WriteString(common.MsgStyle.Render(m.msg) + "\n")
 	}
 	b.WriteString("\n")
 
 	if len(m.items) == 0 {
 		b.WriteString("No items.\n")
-		b.WriteString(formatHelpBar(m.width, []string{"[?] help", "[q] quit"}))
+		b.WriteString(common.FormatHelpBar(m.width, []string{"[?] help", "[q] quit"}))
 		return b.String()
 	}
 
@@ -636,11 +626,11 @@ func (m *Model) View() string {
 			label(item),
 		)
 		if m.trashed[item.Path] {
-			line = trashedStyle.Render(line)
+			line = common.TrashedStyle.Render(line)
 		} else if m.marked[item.Path] {
-			line = markedStyle.Render(line)
+			line = common.MarkedStyle.Render(line)
 		} else if i == m.selected {
-			line = selectStyle.Render(line)
+			line = common.SelectStyle.Render(line)
 		}
 		b.WriteString(line + "\n")
 	}
@@ -650,13 +640,13 @@ func (m *Model) View() string {
 		"[d] mark", "[x] trash", "[m] move", "[r] restore",
 		"[a] analyze dir", "[A] analyze selection", "[D] Docker", "[c] clear", "[?] help", "[q] quit",
 	}
-	b.WriteString("\n" + formatHelpBar(m.width, hints) + "\n")
+	b.WriteString("\n" + common.FormatHelpBar(m.width, hints) + "\n")
 	return b.String()
 }
 
 func (m *Model) scanView() string {
 	var b strings.Builder
-	b.WriteString(headerStyle.Render("Dua-style Browser — scanning..."))
+	b.WriteString(common.HeaderStyle.Render("Dua-style Browser — scanning..."))
 	b.WriteString("\n\n")
 	b.WriteString(m.spinner.View() + " ")
 	b.WriteString(fmt.Sprintf("Files: %d  Dirs: %d\n", m.files, m.dirs))
@@ -666,8 +656,8 @@ func (m *Model) scanView() string {
 			b.WriteString(fmt.Sprintf("Speed: %.0f files/sec  %.0f dirs/sec\n", float64(m.files)/secs, float64(m.dirs)/secs))
 		}
 	}
-	b.WriteString(fmt.Sprintf("Last: %s\n", truncate(m.lastPath, 60)))
-	b.WriteString("\n" + formatHelpBar(m.width, []string{"[q] quit"}) + "\n")
+	b.WriteString(fmt.Sprintf("Last: %s\n", common.Truncate(m.lastPath, 60)))
+	b.WriteString("\n" + common.FormatHelpBar(m.width, []string{"[q] quit"}) + "\n")
 	return b.String()
 }
 
@@ -699,58 +689,58 @@ func (m *Model) helpView() string {
 	for _, l := range lines {
 		b.WriteString(center(l, boxWidth) + "\n")
 	}
-	return helpBoxStyle.Width(boxWidth).Render(b.String())
+	return common.HelpBoxStyle.Width(boxWidth).Render(b.String())
 }
 
 func (m *Model) analyzerView() string {
 	var b strings.Builder
-	b.WriteString(headerStyle.Render("Deletability Analysis"))
+	b.WriteString(common.HeaderStyle.Render("Deletability Analysis"))
 	b.WriteString("\n\n")
 
 	if m.analyzerRunning {
 		b.WriteString(m.spinner.View() + " Analyzing...\n\n")
 		b.WriteString(fmt.Sprintf("Stage:   %s\n", m.analyzerProg.Stage))
 		b.WriteString(fmt.Sprintf("Files:   %d\n", m.analyzerProg.FilesProcessed))
-		b.WriteString(fmt.Sprintf("Current: %s\n\n", truncate(m.analyzerProg.CurrentPath, 60)))
+		b.WriteString(fmt.Sprintf("Current: %s\n\n", common.Truncate(m.analyzerProg.CurrentPath, 60)))
 
 		summary := m.analyzerProg.HintsFound
 		b.WriteString(fmt.Sprintf("Found so far: %s old %s, %s %s, %s %s\n",
-			summaryStyle.Render(fmt.Sprintf("%d", summary.Old)),
-			pluralize(summary.Old, "file", "files"),
-			summaryStyle.Render(fmt.Sprintf("%d", summary.Duplicate)),
-			pluralize(summary.Duplicate, "duplicate", "duplicates"),
-			summaryStyle.Render(fmt.Sprintf("%d", summary.LogCache)),
-			pluralize(summary.LogCache, "log/cache", "log/cache"),
+			common.SummaryStyle.Render(fmt.Sprintf("%d", summary.Old)),
+			common.Pluralize(summary.Old, "file", "files"),
+			common.SummaryStyle.Render(fmt.Sprintf("%d", summary.Duplicate)),
+			common.Pluralize(summary.Duplicate, "duplicate", "duplicates"),
+			common.SummaryStyle.Render(fmt.Sprintf("%d", summary.LogCache)),
+			common.Pluralize(summary.LogCache, "log/cache", "log/cache"),
 		))
-		b.WriteString("  " + stackedBar(summary, stackedBarWidth) + "\n\n")
+		b.WriteString("  " + common.StackedBar(summary, stackedBarWidth) + "\n\n")
 
-		b.WriteString(formatHelpBar(m.width, []string{"[esc] cancel", "[q] quit"}) + "\n")
+		b.WriteString(common.FormatHelpBar(m.width, []string{"[esc] cancel", "[q] quit"}) + "\n")
 		return b.String()
 	}
 
 	if len(m.hints) == 0 {
 		b.WriteString("No hints found.\n")
 		if m.msg != "" {
-			b.WriteString("\n" + msgStyle.Render(m.msg) + "\n")
+			b.WriteString("\n" + common.MsgStyle.Render(m.msg) + "\n")
 		}
-		b.WriteString("\n" + formatHelpBar(m.width, []string{"[esc] back", "[q] quit"}) + "\n")
+		b.WriteString("\n" + common.FormatHelpBar(m.width, []string{"[esc] back", "[q] quit"}) + "\n")
 		return b.String()
 	}
 
 	b.WriteString(fmt.Sprintf("Found %d hints\n\n", len(m.hints)))
 	if m.msg != "" {
-		b.WriteString(msgStyle.Render(m.msg) + "\n")
+		b.WriteString(common.MsgStyle.Render(m.msg) + "\n")
 	}
 
 	summary := analyzer.SummarizeHints(m.hints)
-	cats := summaryCategories(summary)
-	renderCat := func(cat summaryCategory) string {
+	cats := common.SummaryCategories(summary)
+	renderCat := func(cat common.SummaryCategory) string {
 		s := cat.String()
 		if m.analyzerFilter == cat.Reason {
-			return filterStyle.Render(s)
+			return common.FilterStyle.Render(s)
 		}
 		if cat.Value > 0 {
-			return summaryStyle.Render(s)
+			return common.SummaryStyle.Render(s)
 		}
 		return s
 	}
@@ -759,7 +749,7 @@ func (m *Model) analyzerView() string {
 		parts[i] = renderCat(cat)
 	}
 	b.WriteString(strings.Join(parts, ", ") + "\n")
-	b.WriteString("  " + stackedBar(summary, stackedBarWidth) + "\n\n")
+	b.WriteString("  " + common.StackedBar(summary, stackedBarWidth) + "\n\n")
 
 	filtered := m.filteredHints()
 	b.WriteString(fmt.Sprintf("Showing %d of %d\n", len(filtered), len(m.hints)))
@@ -777,20 +767,20 @@ func (m *Model) analyzerView() string {
 		var style lipgloss.Style
 		switch h.Reason {
 		case analyzer.ReasonOld:
-			style = hintOldStyle
+			style = common.HintOldStyle
 		case analyzer.ReasonDuplicate:
-			style = hintDupStyle
+			style = common.HintDupStyle
 		case analyzer.ReasonLogCache:
-			style = hintLogStyle
+			style = common.HintLogStyle
 		}
 		line := fmt.Sprintf("%-3s %-12s %-15s %s",
 			prefix,
 			string(h.Reason),
-			truncate(h.Detail, 14),
-			truncate(h.Entry.Path, 60),
+			common.Truncate(h.Detail, 14),
+			common.Truncate(h.Entry.Path, 60),
 		)
 		if i == m.selected {
-			line = selectStyle.Render(line)
+			line = common.SelectStyle.Render(line)
 		} else {
 			line = style.Render(line)
 		}
@@ -798,24 +788,24 @@ func (m *Model) analyzerView() string {
 	}
 
 	hints := []string{"[j/k/down/up] nav", "[tab/←/→] filter", "[0] clear filter", "[c] clear marks", "[space] mark", "[d] trash marked", "[esc] back", "[q] quit"}
-	b.WriteString("\n" + formatHelpBar(m.width, hints) + "\n")
+	b.WriteString("\n" + common.FormatHelpBar(m.width, hints) + "\n")
 	return b.String()
 }
 
 func (m *Model) dockerView() string {
 	var b strings.Builder
-	b.WriteString(headerStyle.Render("Docker Disk Usage"))
+	b.WriteString(common.HeaderStyle.Render("Docker Disk Usage"))
 	b.WriteString("\n\n")
 
 	if m.dockerErr != nil {
-		b.WriteString(dangerStyle.Render("Error: "+m.dockerErr.Error()) + "\n")
-		b.WriteString("\n" + formatHelpBar(m.width, []string{"[esc] back", "[q] quit"}) + "\n")
+		b.WriteString(common.DangerStyle.Render("Error: "+m.dockerErr.Error()) + "\n")
+		b.WriteString("\n" + common.FormatHelpBar(m.width, []string{"[esc] back", "[q] quit"}) + "\n")
 		return b.String()
 	}
 
 	if m.dockerUsage == nil {
 		b.WriteString(m.spinner.View() + " Loading Docker usage...\n")
-		b.WriteString("\n" + formatHelpBar(m.width, []string{"[esc] back", "[q] quit"}) + "\n")
+		b.WriteString("\n" + common.FormatHelpBar(m.width, []string{"[esc] back", "[q] quit"}) + "\n")
 		return b.String()
 	}
 
@@ -834,7 +824,7 @@ func (m *Model) dockerView() string {
 		line := fmt.Sprintf("%-12s size: %-10s reclaimable: %-10s count: %d",
 			r.name, analyzer.PrettySize(r.u.Size), analyzer.PrettySize(r.u.Reclaimable), r.u.TotalCount)
 		if i == m.dockerSelected {
-			line = selectStyle.Render(line)
+			line = common.SelectStyle.Render(line)
 		}
 		b.WriteString(line + "\n")
 	}
@@ -842,25 +832,25 @@ func (m *Model) dockerView() string {
 	total := m.dockerUsage.TotalSize()
 	b.WriteString(fmt.Sprintf("\nTotal used: %s\n", analyzer.PrettySize(total)))
 	if m.msg != "" {
-		b.WriteString(msgStyle.Render(m.msg) + "\n")
+		b.WriteString(common.MsgStyle.Render(m.msg) + "\n")
 	}
 	if m.dockerMsg != "" {
 		b.WriteString(m.dockerMsg + "\n")
 	}
 	hints := []string{"[↑/↓/j/k] navigate", "[p] prune selected", "[r] refresh", "[esc] back", "[q] quit"}
-	b.WriteString("\n" + formatHelpBar(m.width, hints) + "\n")
+	b.WriteString("\n" + common.FormatHelpBar(m.width, hints) + "\n")
 	return b.String()
 }
 
 func (m *Model) dockerConfirmView() string {
 	var b strings.Builder
-	b.WriteString(headerStyle.Render("Confirm Docker prune"))
+	b.WriteString(common.HeaderStyle.Render("Confirm Docker prune"))
 	b.WriteString("\n\n")
 
 	items := []string{"Images", "Containers", "Volumes", "Build Cache"}
 	selected := items[m.dockerSelected]
 	b.WriteString(fmt.Sprintf("Prune %s? This action cannot be undone.\n\n", selected))
-	b.WriteString(formatHelpBar(m.width, []string{"[y] yes", "[n] no"}) + "\n")
+	b.WriteString(common.FormatHelpBar(m.width, []string{"[y] yes", "[n] no"}) + "\n")
 	return b.String()
 }
 
@@ -909,7 +899,7 @@ func bar(size, max int64, width int) string {
 	if w > width {
 		w = width
 	}
-	return barStyle.Render(strings.Repeat("█", w)) + strings.Repeat("░", width-w)
+	return common.BarStyle.Render(strings.Repeat("█", w)) + strings.Repeat("░", width-w)
 }
 
 func center(s string, width int) string {
@@ -918,97 +908,6 @@ func center(s string, width int) string {
 	}
 	pad := (width - len(s)) / 2
 	return strings.Repeat(" ", pad) + s
-}
-
-func formatHelpBar(width int, hints []string) string {
-	if width <= 0 {
-		return strings.Join(hints, "  ")
-	}
-	var lines []string
-	var current string
-	for _, hint := range hints {
-		if current == "" {
-			current = hint
-			continue
-		}
-		if len(current)+2+len(hint) <= width {
-			current += "  " + hint
-		} else {
-			lines = append(lines, current)
-			current = hint
-		}
-	}
-	if current != "" {
-		lines = append(lines, current)
-	}
-	return strings.Join(lines, "\n")
-}
-
-func truncate(s string, n int) string {
-	if len(s) <= n {
-		return s
-	}
-	if n <= 3 {
-		return "..."
-	}
-	return "..." + s[len(s)-(n-3):]
-}
-
-func pluralize(n int, singular, plural string) string {
-	if n == 1 {
-		return singular
-	}
-	return plural
-}
-
-type summaryCategory struct {
-	Value  int
-	Reason analyzer.HintReason
-	Label  string
-}
-
-func (sc summaryCategory) String() string {
-	return fmt.Sprintf("%d %s", sc.Value, sc.Label)
-}
-
-func summaryCategories(summary analyzer.HintSummary) []summaryCategory {
-	return []summaryCategory{
-		{Value: summary.Old, Reason: analyzer.ReasonOld, Label: pluralize(summary.Old, "old file", "old files")},
-		{Value: summary.Duplicate, Reason: analyzer.ReasonDuplicate, Label: pluralize(summary.Duplicate, "duplicate", "duplicates")},
-		{Value: summary.LogCache, Reason: analyzer.ReasonLogCache, Label: "log/cache"},
-	}
-}
-
-// stackedBarSegments returns the widths of the old, duplicate, and log/cache
-// segments for a stacked bar of the given total width.
-func stackedBarSegments(summary analyzer.HintSummary, width int) (int, int, int) {
-	total := summary.Old + summary.Duplicate + summary.LogCache
-	if total == 0 {
-		return 0, 0, 0
-	}
-
-	wOld := int(math.Round(float64(summary.Old) / float64(total) * float64(width)))
-	wDup := int(math.Round(float64(summary.Duplicate) / float64(total) * float64(width)))
-	wLog := width - wOld - wDup
-
-	if wLog < 0 {
-		wDup += wLog
-		wLog = 0
-	}
-
-	return wOld, wDup, wLog
-}
-
-// stackedBar renders a single stacked bar where each segment is proportional
-// to the count of hints in that category.
-func stackedBar(summary analyzer.HintSummary, width int) string {
-	if summary.Old+summary.Duplicate+summary.LogCache == 0 {
-		return barStyle.Render(strings.Repeat("░", width))
-	}
-	wOld, wDup, wLog := stackedBarSegments(summary, width)
-	return hintOldStyle.Render(strings.Repeat("█", wOld)) +
-		hintDupStyle.Render(strings.Repeat("█", wDup)) +
-		hintLogStyle.Render(strings.Repeat("█", wLog))
 }
 
 func (m *Model) runAnalyzer() tea.Cmd {
@@ -1166,22 +1065,7 @@ func findEntryByPath(roots []*analyzer.Entry, target string) *analyzer.Entry {
 	return nil
 }
 
-var (
-	headerStyle      = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#7aa2f7"))
-	selectStyle      = lipgloss.NewStyle().Background(lipgloss.Color("#3b4261"))
-	dangerStyle      = lipgloss.NewStyle().Foreground(lipgloss.Color("#f7768e"))
-	markedStyle      = lipgloss.NewStyle().Foreground(lipgloss.Color("#e0af68"))
-	trashedStyle     = lipgloss.NewStyle().Foreground(lipgloss.Color("#565f89")).Strikethrough(true)
-	currentPathStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#9ece6a"))
-	msgStyle         = lipgloss.NewStyle().Foreground(lipgloss.Color("#bb9af7"))
-	barStyle         = lipgloss.NewStyle().Foreground(lipgloss.Color("#7dcfff"))
-	helpBoxStyle     = lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).Padding(1, 2)
-	hintOldStyle     = lipgloss.NewStyle().Foreground(lipgloss.Color("#bb9af7"))
-	hintDupStyle     = lipgloss.NewStyle().Foreground(lipgloss.Color("#7dcfff"))
-	hintLogStyle     = lipgloss.NewStyle().Foreground(lipgloss.Color("#ff9e64"))
-	summaryStyle     = lipgloss.NewStyle().Foreground(lipgloss.Color("#9ece6a")).Bold(true).Underline(true)
-	filterStyle      = lipgloss.NewStyle().Foreground(lipgloss.Color("#e0af68")).Bold(true).Underline(true)
-)
+
 
 // RunWithScan starts the dua-style TUI and scans the given paths in the
 // background. progressInterval controls how often scan progress is reported

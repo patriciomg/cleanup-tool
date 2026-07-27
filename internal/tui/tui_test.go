@@ -6,6 +6,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/patriciomg/cleanup-tool/internal/analyzer"
+	"github.com/patriciomg/cleanup-tool/internal/tui/common"
 )
 
 func entry(name, path string, size int64, isDir bool, children ...*analyzer.Entry) *analyzer.Entry {
@@ -127,7 +128,7 @@ func TestHandleMouseFilterClick(t *testing.T) {
 	// The summary line is rendered at analyzerSummaryLineY in analyzerView.
 	// Compute click positions using the same helper the view uses.
 	summary := analyzer.SummarizeHints(m.hints)
-	cats := m.summaryCategories(summary)
+	cats := common.SummaryCategories(summary)
 
 	var x int
 	for _, cat := range cats {
@@ -171,7 +172,7 @@ func TestHandleMouseStackedBarClick(t *testing.T) {
 	m.view = viewAnalyzer
 
 	summary := analyzer.SummarizeHints(m.hints)
-	wOld, wDup, _ := stackedBarSegments(summary, stackedBarWidth)
+	wOld, wDup, _ := common.StackedBarSegments(summary, stackedBarWidth)
 
 	cases := []struct {
 		name     string
@@ -218,7 +219,7 @@ func TestHandleMouseStackedBarClick_ZeroWidthSegment(t *testing.T) {
 
 	// Confirm the log/cache segment really has zero width for this data set.
 	summary := analyzer.SummarizeHints(m.hints)
-	_, _, wLog := stackedBarSegments(summary, stackedBarWidth)
+	_, _, wLog := common.StackedBarSegments(summary, stackedBarWidth)
 	if wLog != 0 {
 		t.Fatalf("expected log/cache segment width 0, got %d", wLog)
 	}
@@ -308,7 +309,7 @@ func TestFilteredHints(t *testing.T) {
 
 func TestStackedBar(t *testing.T) {
 	summary := analyzer.HintSummary{Old: 2, Duplicate: 3, LogCache: 1}
-	got := stackedBar(summary, stackedBarWidth)
+	got := common.StackedBar(summary, stackedBarWidth)
 	// The rendered string should include styling escape sequences, so measure
 	// the visible block characters by counting the full block rune.
 	visible := strings.Count(got, "█")
@@ -326,7 +327,7 @@ func TestStackedBar(t *testing.T) {
 
 func TestStackedBar_ZeroTotal(t *testing.T) {
 	summary := analyzer.HintSummary{Old: 0, Duplicate: 0, LogCache: 0}
-	got := stackedBar(summary, stackedBarWidth)
+	got := common.StackedBar(summary, stackedBarWidth)
 	visible := strings.Count(got, "░")
 	if visible != stackedBarWidth {
 		t.Fatalf("expected %d empty blocks when total is zero, got %d: %q", stackedBarWidth, visible, got)
@@ -348,7 +349,7 @@ func TestStackedBarSegments(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			gotOld, gotDup, gotLog := stackedBarSegments(tc.summary, tc.width)
+			gotOld, gotDup, gotLog := common.StackedBarSegments(tc.summary, tc.width)
 			if gotOld != tc.wantOld || gotDup != tc.wantDuplicate || gotLog != tc.wantLogCache {
 				t.Fatalf("expected (%d, %d, %d), got (%d, %d, %d)", tc.wantOld, tc.wantDuplicate, tc.wantLogCache, gotOld, gotDup, gotLog)
 			}
@@ -383,7 +384,7 @@ func TestFormatHelpBar(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			got := formatHelpBar(tc.width, tc.hints)
+			got := common.FormatHelpBar(tc.width, tc.hints)
 			lines := strings.Split(got, "\n")
 			if len(lines) != tc.expect {
 				t.Fatalf("expected %d lines, got %d: %q", tc.expect, len(lines), got)
