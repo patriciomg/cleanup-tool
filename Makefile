@@ -21,6 +21,17 @@ INSTALL_DIR ?= $(HOME)/bin
 # GPG configuration for release signing
 GPG ?= gpg
 GPG_KEY_ID ?=
+# Set GPG_PASSPHRASE when running in a non-interactive environment
+# to use loopback pinentry (requires `allow-loopback-pinentry` in gpg-agent.conf).
+GPG_PASSPHRASE ?=
+
+GPG_ARGS := --batch --armor --detach-sign --yes
+ifneq ($(GPG_KEY_ID),)
+	GPG_ARGS += -u $(GPG_KEY_ID)
+endif
+ifneq ($(GPG_PASSPHRASE),)
+	GPG_ARGS += --pinentry-mode loopback --passphrase "$(GPG_PASSPHRASE)"
+endif
 
 .DEFAULT_GOAL := build
 
@@ -86,16 +97,31 @@ release-sign: ## Sign release tarballs and checksums with GPG
 	@for f in $(DIST_DIR)/*.tar.gz; do \
 		if [ -f "$$f" ]; then \
 			echo "Signing $$f..."; \
-			$(GPG) --batch --armor --detach-sign $(if $(GPG_KEY_ID),-u $(GPG_KEY_ID),) --yes "$$f"; \
+			$(GPG) $(GPG_ARGS) "$$f"; \
 		fi; \
 	done
 	@if [ -f "$(DIST_DIR)/checksums.txt" ]; then \
 		echo "Signing $(DIST_DIR)/checksums.txt..."; \
-		$(GPG) --batch --armor --detach-sign $(if $(GPG_KEY_ID),-u $(GPG_KEY_ID),) --yes "$(DIST_DIR)/checksums.txt"; \
+		$(GPG) $(GPG_ARGS) "$(DIST_DIR)/checksums.txt"; \
 	fi
 
 release-clean: ## Remove all release artifacts
 	rm -rf $(DIST_DIR)
+
+release-clean-old: ## Remove all but the most recent release tarball in dist/
+	@cd $(DIST_DIR) && { \
+		tarballs=$$(ls -t *.tar.gz 2>/dev/null); \
+		if [ -z "$$tarballs" ]; then \
+			echo "No tarballs found in $(DIST_DIR)."; \
+			exit 0; \
+		fi; \
+		kept=$$(echo "$$tarballs" | head -n 1); \
+		echo "Keeping: $$kept"; \
+		echo "$$tarballs" | tail -n +2 | while read -r old; do \
+			echo "Removing: $$old"; \
+			rm -f "$$old"; \
+		done; \
+	}
 
 watch: ## Watch Go files and rebuild on change (requires reflex)
 	@if ! command -v reflex >/dev/null 2>&1; then \
