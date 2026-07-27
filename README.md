@@ -93,6 +93,7 @@ make watch-test
 | `-stdout` | Export scan results to stdout (works with any `-format`; non-interactive) | `false` |
 | `-format` | Export format: `json`, `csv`, `tsv`, `yaml`. Defaults to `json`; auto-detected from `-out` extension when omitted. | `json` |
 | `-csv-columns` | Comma-separated CSV/TSV column names | `""` |
+| `-tui-style` | Interactive TUI style: `tree` or `dua` | `tree` |
 
 ## Exporting results
 
@@ -277,7 +278,7 @@ Example `~/.config/cleanup-tool/config.json`:
 
 ## Key bindings
 
-### File browser
+### File browser (tree style)
 
 | Key | Action |
 |-----|--------|
@@ -292,6 +293,23 @@ Example `~/.config/cleanup-tool/config.json`:
 | a | Analyze selected directory |
 | A | Analyze selected items |
 | D | Open Docker disk usage |
+| q | Quit |
+
+### Dua-style browser
+
+Start with `./cleanup-tool -tui-style dua`. This mode shows a flat list of the
+entries in the current directory, sorted by size, with a percentage and a small
+bar for each item.
+
+| Key | Action |
+|-----|--------|
+| ↑ / ↓ / j / k | Navigate |
+| Enter / l | Descend into selected directory |
+| Backspace / h / u / Esc | Go to parent directory |
+| d | Mark / unmark selected item |
+| x | Trash marked items (or selected item if none marked) |
+| c | Clear all marks |
+| ? | Toggle help |
 | q | Quit |
 
 ### Analyzer summary

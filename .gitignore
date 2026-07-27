@@ -16,7 +16,7 @@ vendor/
 
 # Build artifacts
 dist/
-cleanup-tool
+/cleanup-tool
 cleanup-tool-intel
 cleanup-tool-arm64
 cleanup-tool-amd64

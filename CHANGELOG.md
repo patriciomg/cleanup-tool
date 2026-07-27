@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Alternative `dua`-style interactive TUI (`-tui-style dua`) with a flat, size-sorted list, percentage/bar columns, and `dua i`-like keyboard navigation.
 - `-out` flag as a format-agnostic alias for writing scan exports (JSON, CSV, TSV, YAML) to a file.
 - `-stdout` flag as a clearer alias for `-json` that exports scan results to stdout with any `-format`.
 - Format auto-detection from the `-out` file extension: `.json`, `.csv`, `.tsv`, `.yaml`/`.yml`.

@@ -15,6 +15,7 @@ import (
 	"github.com/patriciomg/cleanup-tool/internal/config"
 	"github.com/patriciomg/cleanup-tool/internal/docker"
 	"github.com/patriciomg/cleanup-tool/internal/tui"
+	"github.com/patriciomg/cleanup-tool/internal/tui/dua"
 	"github.com/patriciomg/cleanup-tool/internal/utils"
 )
 
@@ -52,6 +53,7 @@ func main() {
 		csvColumns       string
 		dupModeFlag      string
 		progressInterval int
+		tuiStyle         string
 	)
 
 	ignoreHiddenFlag := &boolFlag{value: cfg.IgnoreHidden}
@@ -69,6 +71,7 @@ func main() {
 	flag.StringVar(&csvColumns, "csv-columns", "", "Comma-separated CSV/TSV column names (default: all columns)")
 	flag.StringVar(&dupModeFlag, "dup-mode", cfg.DupMode, "Duplicate detection mode: first10mb, sample, full, smart")
 	flag.IntVar(&progressInterval, "progress-interval", cfg.ProgressInterval, "Report analyzer progress every N files")
+	flag.StringVar(&tuiStyle, "tui-style", "tree", "Interactive TUI style: tree or dua")
 	flag.Parse()
 
 	ignoreHidden := cfg.IgnoreHidden
@@ -158,9 +161,21 @@ func main() {
 		return
 	}
 
-	dockerClient := docker.NewClient()
-	if err := tui.RunWithScan(paths, cfg.IgnorePaths, ignoreHidden, utils.ExpandHome(externalFlag), dockerClient, dupMode, progressInterval); err != nil {
-		fmt.Fprintf(os.Stderr, "tui error: %v\n", err)
+	tuiStyle = strings.ToLower(tuiStyle)
+	switch tuiStyle {
+	case "tree", "":
+		dockerClient := docker.NewClient()
+		if err := tui.RunWithScan(paths, cfg.IgnorePaths, ignoreHidden, utils.ExpandHome(externalFlag), dockerClient, dupMode, progressInterval); err != nil {
+			fmt.Fprintf(os.Stderr, "tui error: %v\n", err)
+			os.Exit(1)
+		}
+	case "dua":
+		if err := dua.RunWithScan(paths, cfg.IgnorePaths, ignoreHidden, progressInterval); err != nil {
+			fmt.Fprintf(os.Stderr, "dua error: %v\n", err)
+			os.Exit(1)
+		}
+	default:
+		fmt.Fprintf(os.Stderr, "invalid -tui-style %q; valid: tree, dua\n", tuiStyle)
 		os.Exit(1)
 	}
 }
