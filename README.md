@@ -11,7 +11,7 @@ A fast, terminal-based disk cleanup tool tailored for macOS developers who work 
 - **Batch operations**: mark and act on items across multiple directories
 - **Configurable ignore paths** via `~/.config/cleanup-tool/config.json`
 - **Duplicate file detection** with configurable hashing modes (sample, first 10 MB, full, smart)
-- **Deletability analyzer** that flags old files, log/cache files, and duplicates, with per-category filtering, sparkline summary, and live progress
+- **Deletability analyzer** that flags old files, log/cache files, and duplicates, with per-category filtering, stacked bar summary, and live progress
 - **Docker disk usage** analysis and prune wrapper for images, containers, volumes, and build cache
 - **Mouse and keyboard support** in the analyzer summary for filtering by category
 - **Benchmark mode** to measure scan performance (`-benchmark`)
@@ -303,8 +303,9 @@ Deletability Analysis
 
 Found 6 hints
 
-2 old files ████, 3 duplicates ██████, 1 log/cache █
-  ▄█ ▄▄█ ▁
+2 old files, 3 duplicates, 1 log/cache
+  ████████████████████████
+  ^ old       ^ duplicate    ^ log/cache (each segment is colored in the TUI)
 
 Showing 6 of 6
        Reason          Detail          Path
@@ -515,7 +516,7 @@ gpg --verify cleanup-tool-<version>-darwin-universal.tar.gz.asc \
 - [x] Categorisation of common space hogs (Docker, LLMs, build artifacts, deps, media, archives, logs, caches)
 - [x] Configurable ignore paths via `~/.config/cleanup-tool/config.json`
 - [x] Duplicate file detection with configurable hashing modes
-- [x] Deletability analyzer with per-category filtering, sparkline summary, and live progress
+- [x] Deletability analyzer with per-category filtering, stacked bar summary, and live progress
 - [x] Docker image/volume/cache analysis and prune wrapper
 - [x] Batch mark / move / trash / restore across directories
 - [x] Mouse and keyboard support in the analyzer summary

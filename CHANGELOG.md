@@ -21,7 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - or duplicates.
 - **Live per-category summary** while the analyzer runs, showing counts for old files, duplicates, and log/cache files.
 - **Interactive analyzer filtering** by category using the keyboard (Tab/arrow keys, `0` to clear) or by clicking the summary line.
-- **Visual bar charts / sparklines** next to the analyzer summary counts.
+- **Stacked bar summary** for analyzer hints, with proportional old / duplicate / log/cache segments colored by category (and clickable in the TUI).
 - **Docker disk usage** view with per-resource breakdown (images, containers, volumes, build cache) and a prune wrapper (`p`).
 - **Persistent marks** across directory navigation so batch trash/move operations work on items selected in multiple folders.
 - **Directory label** in the file list Category column so folders are clearly shown as `Directory`.
