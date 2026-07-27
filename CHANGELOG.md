@@ -9,7 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **Duplicate file detection** with four configurable hash modes: `first10mb`, `sample`, `full`, and `smart` (size → sample → full).
+- **Saved rules** (`rules` subcommand) for reusable cleanup presets with create, list, show, edit, delete, and run commands.
+- **Non-interactive rule execution** with dry-run mode, category filtering, age threshold override, max-deleted-bytes safety limit, and optional confirmation prompt.
+- **launchd scheduling** (`schedule` subcommand) to install, remove, and list macOS user agents for saved rules. Supports daily, weekly, interval, and on-login triggers.
+- Example rule in `README.md` for cleaning `~/Library/Caches`.
+- `internal/launchd` package for generating plists and managing `launchctl` user agents.
+- **Duplicate file detection** with five configurable hash modes: `none`, `first10mb`, `sample`, `full`, and `smart` (size → sample → full).
 - **Deletability analyzer** that flags files as:
   - older than one year,
   - log/cache files,
@@ -31,8 +36,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Deadlock in the scanner when walking large directories.
+- Saved rules now resolve symlinks before checking protected paths, preventing a rule pointing at a symlink to `/` or system directories from bypassing protection.
+- Saved rules default to `dup-mode: smart` when created via the CLI, matching the analyzer and executor defaults.
 - Analyzer hit-test now covers the rendered bar chart, not just the category text.
 - The `-ignore-hidden` flag now honors the `ignore_hidden` value from the config file and can be overridden with `-ignore-hidden=false`.
+- `launchctl bootstrap` no longer fails with "Input/output error" when re-installing an existing schedule (added `bootout` before `bootstrap`).
+- Generated launchd plists now correctly escape dynamic values (`&`, `<`, `>`, `"`, `'`) to produce valid XML.
+- CLI subcommands now accept flags after positional arguments (e.g., `schedule install e2e-test-cache --on-login` works, not just `--on-login e2e-test-cache`).
 
 ### Documentation
 

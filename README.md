@@ -6,7 +6,7 @@ A fast, terminal-based disk cleanup tool tailored for macOS developers who work 
 
 - **Parallel directory scanner** with bounded concurrency, live progress, and throughput stats
 - **Categorisation** of common space hogs: Docker, LLM models, build artifacts, dependencies, media, archives, logs, and caches
-- **Interactive TUI** (powered by [Bubble Tea](https://github.com/charmbracelet/bubbletea)) sorted by size
+- **Interactive TUI** (powered by [Bubble Tea](https://github.com/charmbracelet/bubbletea)) with a tree-style file browser sorted by size
 - **Safe actions**: move to Trash, move to an external drive via `rsync`, and restore
 - **Batch operations**: mark and act on items across multiple directories
 - **Configurable ignore paths** via `~/.config/cleanup-tool/config.json`
@@ -15,6 +15,7 @@ A fast, terminal-based disk cleanup tool tailored for macOS developers who work 
 - **Docker disk usage** analysis and prune wrapper for images, containers, volumes, and build cache
 - **Mouse and keyboard support** in the analyzer summary for filtering by category
 - **Benchmark mode** to measure scan performance (`-benchmark`)
+- **Saved rules** for reusable cleanup presets with non-interactive execution (`rules` subcommand)
 - **CI/CD and release tooling**: smoke-tested universal macOS binaries, tarball packaging, SHA-256 checksums, and GPG-signed releases via GitHub Actions
 
 ## Install
@@ -23,6 +24,27 @@ A fast, terminal-based disk cleanup tool tailored for macOS developers who work 
 cd cleanup-tool
 go build ./cmd/cleanup-tool
 ```
+
+## Development
+
+Auto-rebuild the binary whenever a Go file changes with `reflex`:
+
+```bash
+# Install reflex once
+ go install github.com/cespare/reflex@latest
+
+# Make sure ~/go/bin is on PATH (add to your shell profile)
+export PATH="$PATH:$(go env GOPATH)/bin"
+
+# Auto-rebuild on every Go file change
+make watch
+
+# Or auto-run tests on every Go file change (slower; best for focused work)
+make watch-test
+```
+
+`reflex` only rebuilds; run the resulting `./cleanup-tool` binary manually in another terminal so the interactive TUI is not interrupted by file watchers.
+
 
 ## Usage
 
@@ -47,6 +69,11 @@ go build ./cmd/cleanup-tool
 
 # Benchmark scan performance (non-interactive; prints throughput stats)
 ./cleanup-tool -benchmark -paths /tmp
+
+# Create and run a saved rule
+./cleanup-tool rules create --name logs --paths ~/Library/Logs --action trash --categories log/cache
+./cleanup-tool rules run logs --dry-run
+./cleanup-tool rules run logs --yes
 ```
 
 ## CLI flags
@@ -60,6 +87,98 @@ go build ./cmd/cleanup-tool
 | `-progress-interval` | Report scan/analyzer progress every N items | `100` |
 | `-benchmark` | Run a non-interactive scan and print throughput stats | `false` |
 | `-version` | Print version and exit | `false` |
+
+## Saved rules
+
+Rules are reusable cleanup presets stored in `~/.config/cleanup-tool/rules.json`.
+
+```bash
+# Create a rule
+./cleanup-tool rules create --name weekly-logs \
+  --paths ~/Library/Logs,~/Library/Caches \
+  --categories log/cache \
+  --action trash \
+  --age-threshold-days 30
+
+# List rules
+./cleanup-tool rules list
+
+# Show a rule as JSON
+./cleanup-tool rules show weekly-logs
+
+# Edit a rule in $EDITOR
+./cleanup-tool rules edit weekly-logs
+
+# Delete a rule
+./cleanup-tool rules delete weekly-logs
+
+# Dry-run and run a rule
+./cleanup-tool rules run weekly-logs --dry-run
+./cleanup-tool rules run weekly-logs --yes
+```
+
+Rule fields:
+
+| Field | Description |
+|-------|-------------|
+| `name` | Unique identifier (required) |
+| `paths` | Comma-separated paths to scan (required) |
+| `ignore_paths` | Additional paths to ignore |
+| `ignore_hidden` | Skip hidden files/directories |
+| `categories` | Comma-separated: `old`, `log/cache`, `duplicate` |
+| `age_threshold_days` | Minimum age for `old` files (default 365) |
+| `dup_mode` | `none`, `first10mb`, `sample`, `full`, `smart` |
+| `action` | `trash` or `move_external` |
+| `destination` | External directory for `move_external` |
+| `max_deleted_bytes` | Abort if matched size exceeds this |
+| `dry_run` | Only report what would be deleted |
+
+### Example: clean macOS caches
+
+```bash
+./cleanup-tool rules create --name cache-cleanup \
+  --paths "~/Library/Caches" \
+  --categories "log/cache" \
+  --action trash \
+  --max-deleted-bytes 2147483648
+```
+
+## Scheduling rules with launchd
+
+Rules can be scheduled as macOS user agents in `~/Library/LaunchAgents`. The `schedule` subcommand installs, removes, and lists these agents.
+
+```bash
+# Run a rule every day at 10:00
+./cleanup-tool schedule install cache-cleanup --daily --at 10:00
+
+# Run a rule every Monday at 09:00
+./cleanup-tool schedule install cache-cleanup --weekly --day Mon --at 09:00
+
+# Run a rule every hour
+./cleanup-tool schedule install cache-cleanup --interval 3600
+
+# Run a rule once after login
+./cleanup-tool schedule install cache-cleanup --on-login
+
+# List installed schedules
+./cleanup-tool schedule list
+
+# Remove a schedule
+./cleanup-tool schedule remove cache-cleanup
+```
+
+Scheduled runs execute the rule with `--yes`, so they skip the confirmation prompt. Output is written to `~/.local/state/cleanup-tool/<rule>.log`.
+
+> **Note:** schedule options (`--daily`, `--weekly`, `--interval`, `--on-login`) are mutually exclusive. The plist stores the absolute path to the `cleanup-tool` binary, so moving or deleting the binary after scheduling will break the schedule.
+
+### Schedule options
+
+| Option | Description | Example |
+|--------|-------------|---------|
+| `--daily --at HH:MM` | Run every day at the given time | `--daily --at 10:00` |
+| `--weekly --day D --at HH:MM` | Run on a given weekday | `--weekly --day Mon --at 09:00` |
+| `--interval SECONDS` | Run every N seconds | `--interval 3600` |
+| `--on-login` | Run once after user login | `--on-login` |
 
 ## Configuration file
 
@@ -104,14 +223,14 @@ Example `~/.config/cleanup-tool/config.json`:
 | Key | Action |
 |-----|--------|
 | ↑ / ↓ / j / k | Navigate |
-| l / Enter | Open selected item |
-| h / Esc | Go back |
+| l / Enter / → | Expand / collapse selected directory |
+| h / Esc / ← | Collapse directory or move selection to parent |
 | Space | Mark / unmark item |
 | c | Clear all marks |
 | d | Move selected item to Trash |
 | m | Move selected item to external drive (`-external`) |
 | u | Restore last moved / trashed item |
-| a | Analyze current directory |
+| a | Analyze selected directory |
 | A | Analyze selected items |
 | D | Open Docker disk usage |
 | q | Quit |
@@ -160,18 +279,19 @@ Cleanup Tool — scanning...
 
 ### File browser
 
-```
-Cleanup Tool — /Users/pato/personal
+```Cleanup Tool
   total: 312.4 GB  marked: 2
   scanned 1,245,032 files, 98,422 dirs in 12.34s (peak 102,391 files/sec, 8,112 dirs/sec)
 
-       Size      Access       Category        Path
-[x]   89.1 GB  2025-03-12   llm-model       models/Llama-3-70B
-[ ]   24.7 GB  2024-11-08   docker          Docker/raw-images.tar
-[ ]   12.3 GB  2025-01-19   build-artifact  target/release
-[ ]    4.1 GB  2024-09-30   Directory       projects/kk
+       Size      Access       Category        Name
+[x]   89.1 GB  2025-03-12   llm-model       Llama-3-70B
+[ ]   24.7 GB  2024-11-08   docker          raw-images.tar
+[ ]   12.3 GB  2025-01-19   build-artifact    release
+▼[ ]    4.1 GB  2024-09-30   Directory       projects
+    [ ]  2.8 GB  2024-09-30   Directory     kk
+    [ ]  1.2 GB  2024-09-30   Directory     personal
 
-[j/k/down/up] navigate  [l/enter] open  [h/esc] back  [space] mark
+[j/k/down/up] navigate  [l/enter/right] expand  [h/esc/left] collapse
 [c] clear  [d] trash  [m] move  [u] restore  [a] analyze dir
 [A] analyze selection  [D] Docker  [q] quit
 ```
@@ -188,7 +308,7 @@ Found 6 hints
 
 Showing 6 of 6
        Reason          Detail          Path
-[x]   untouched > 1 year  last accessed   old-logs/app.log
+[x]   old                 last accessed   old-logs/app.log
 [ ]   duplicate           3 duplicates    photos/img_001.jpg
 [ ]   log/cache           log-cache       .cache/npm/abc123
 
@@ -391,6 +511,7 @@ gpg --verify cleanup-tool-<version>-darwin-universal.tar.gz.asc \
 ### Done
 
 - [x] Parallel directory scanner with real-time progress and throughput stats
+- [x] Tree view with expand/collapse in the file browser
 - [x] Categorisation of common space hogs (Docker, LLMs, build artifacts, deps, media, archives, logs, caches)
 - [x] Configurable ignore paths via `~/.config/cleanup-tool/config.json`
 - [x] Duplicate file detection with configurable hashing modes
@@ -399,12 +520,12 @@ gpg --verify cleanup-tool-<version>-darwin-universal.tar.gz.asc \
 - [x] Batch mark / move / trash / restore across directories
 - [x] Mouse and keyboard support in the analyzer summary
 - [x] Benchmark mode (`-benchmark`)
+- [x] Saved rules with non-interactive execution
 - [x] CI/CD smoke tests and GPG-signed macOS universal releases
 
 ### Coming soon
 
-- [ ] Tree view with expand/collapse in the file browser
-- [ ] Saved rules and weekly automation via launchd
+- [ ] launchd automation for saved rules
 - [ ] LLM registry cleanup (Ollama, Hugging Face cache, LM Studio)
 - [ ] Export scan results to JSON
 - [ ] Native Homebrew formula

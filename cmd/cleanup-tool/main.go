@@ -14,9 +14,21 @@ import (
 	"github.com/patriciomg/cleanup-tool/internal/config"
 	"github.com/patriciomg/cleanup-tool/internal/docker"
 	"github.com/patriciomg/cleanup-tool/internal/tui"
+	"github.com/patriciomg/cleanup-tool/internal/utils"
 )
 
 func main() {
+	if len(os.Args) > 1 {
+		switch os.Args[1] {
+		case "rules":
+			handleRulesCmd(os.Args[2:])
+			return
+		case "schedule":
+			handleScheduleCmd(os.Args[2:])
+			return
+		}
+	}
+
 	cfg, err := config.Load()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "config load error: %v\n", err)
@@ -81,15 +93,14 @@ func main() {
 			if p == "" {
 				continue
 			}
-			abs, err := filepath.Abs(expandHome(p))
+			abs, err := filepath.Abs(utils.ExpandHome(p))
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "invalid path %q: %v\n", p, err)
 				os.Exit(1)
 			}
 			paths = append(paths, abs)
 		}
-	} else {
-		paths = []string{os.Getenv("HOME")}
+	} else {			paths = []string{utils.ExpandHome("~")}
 	}
 
 	if len(paths) == 0 {
@@ -103,7 +114,7 @@ func main() {
 	}
 
 	dockerClient := docker.NewClient()
-	if err := tui.RunWithScan(paths, cfg.IgnorePaths, ignoreHidden, expandHome(externalFlag), dockerClient, dupMode, progressInterval); err != nil {
+	if err := tui.RunWithScan(paths, cfg.IgnorePaths, ignoreHidden, utils.ExpandHome(externalFlag), dockerClient, dupMode, progressInterval); err != nil {
 		fmt.Fprintf(os.Stderr, "tui error: %v\n", err)
 		os.Exit(1)
 	}
@@ -128,6 +139,33 @@ func (b *boolFlag) Set(s string) error {
 
 // IsBoolFlag lets the flag package accept -ignore-hidden without a value.
 func (b *boolFlag) IsBoolFlag() bool { return true }
+
+// parseInterspersed parses a FlagSet where flags may appear after positional
+// arguments (e.g., `cmd name --flag`). It returns the collected positional
+// arguments. Flags with values, boolean flags, and the `--` terminator are
+// handled correctly.
+func parseInterspersed(fs *flag.FlagSet, args []string) ([]string, error) {
+	var positionals []string
+	for {
+		if err := fs.Parse(args); err != nil {
+			return nil, err
+		}
+		remainder := fs.Args()
+		if len(remainder) == 0 {
+			break
+		}
+		// If the parser stopped at `--`, everything after is positional.
+		consumed := len(args) - len(remainder)
+		if consumed > 0 && args[consumed-1] == "--" {
+			positionals = append(positionals, remainder...)
+			break
+		}
+		// Collect the first unparsed argument and continue parsing the rest.
+		positionals = append(positionals, remainder[0])
+		args = remainder[1:]
+	}
+	return positionals, nil
+}
 
 func runBenchmark(paths []string, ignorePaths []string, ignoreHidden bool) {
 	start := time.Now()
@@ -163,13 +201,4 @@ func runBenchmark(paths []string, ignorePaths []string, ignoreHidden bool) {
 	fmt.Printf("Total size: %s\n", analyzer.PrettySize(totalSize))
 }
 
-func expandHome(p string) string {
-	if strings.HasPrefix(p, "~") {
-		home, err := os.UserHomeDir()
-		if err != nil {
-			return p
-		}
-		return filepath.Join(home, p[1:])
-	}
-	return p
-}
+

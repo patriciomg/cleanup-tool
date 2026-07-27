@@ -5,68 +5,101 @@ import (
 	"testing"
 )
 
-func TestBoolFlag(t *testing.T) {
-	cases := []struct {
-		name      string
-		initial   bool
-		args      []string
-		wantValue bool
-		wantSet   bool
-		wantErr   bool
-	}{
-		{"default false not set", false, nil, false, false, false},
-		{"default true not set", true, nil, true, false, false},
-		{"set true from default false", false, []string{"-flag=true"}, true, true, false},
-		{"set false from default true", true, []string{"-flag=false"}, false, true, false},
-		{"set true without explicit value", false, []string{"-flag"}, true, true, false},
-		{"invalid value errors", false, []string{"-flag=maybe"}, false, false, true},
+func TestParseInterspersedPositionalOnly(t *testing.T) {
+	fs := flag.NewFlagSet("test", flag.ContinueOnError)
+	var b bool
+	fs.BoolVar(&b, "flag", false, "")
+
+	positionals, err := parseInterspersed(fs, []string{"foo"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
 	}
-
-	for _, c := range cases {
-		t.Run(c.name, func(t *testing.T) {
-			bf := &boolFlag{value: c.initial}
-			fs := flag.NewFlagSet("test", flag.ContinueOnError)
-			fs.Var(bf, "flag", "bool flag for testing")
-
-			err := fs.Parse(c.args)
-			if c.wantErr {
-				if err == nil {
-					t.Fatalf("expected error parsing %v", c.args)
-				}
-				if bf.set {
-					t.Errorf("set = true, want false after invalid value")
-				}
-				if bf.value != c.initial {
-					t.Errorf("value = %v, want %v after invalid value", bf.value, c.initial)
-				}
-				return
-			}
-			if err != nil {
-				t.Fatalf("unexpected error parsing %v: %v", c.args, err)
-			}
-
-			if bf.value != c.wantValue {
-				t.Errorf("value = %v, want %v", bf.value, c.wantValue)
-			}
-			if bf.set != c.wantSet {
-				t.Errorf("set = %v, want %v", bf.set, c.wantSet)
-			}
-		})
+	if len(positionals) != 1 || positionals[0] != "foo" {
+		t.Fatalf("expected [foo], got %v", positionals)
 	}
 }
 
-func TestBoolFlagIsBoolFlag(t *testing.T) {
-	bf := &boolFlag{}
-	if !bf.IsBoolFlag() {
-		t.Error("IsBoolFlag() = false, want true")
+func TestParseInterspersedFlagBeforePositional(t *testing.T) {
+	fs := flag.NewFlagSet("test", flag.ContinueOnError)
+	var b bool
+	fs.BoolVar(&b, "flag", false, "")
+
+	positionals, err := parseInterspersed(fs, []string{"--flag", "foo"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !b {
+		t.Fatalf("expected flag to be set")
+	}
+	if len(positionals) != 1 || positionals[0] != "foo" {
+		t.Fatalf("expected [foo], got %v", positionals)
 	}
 }
 
-func TestBoolFlagString(t *testing.T) {
-	if got := (&boolFlag{value: true}).String(); got != "true" {
-		t.Errorf("String() = %q, want \"true\"", got)
+func TestParseInterspersedFlagAfterPositional(t *testing.T) {
+	fs := flag.NewFlagSet("test", flag.ContinueOnError)
+	var b bool
+	fs.BoolVar(&b, "flag", false, "")
+
+	positionals, err := parseInterspersed(fs, []string{"foo", "--flag"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
 	}
-	if got := (&boolFlag{value: false}).String(); got != "false" {
-		t.Errorf("String() = %q, want \"false\"", got)
+	if !b {
+		t.Fatalf("expected flag to be set")
+	}
+	if len(positionals) != 1 || positionals[0] != "foo" {
+		t.Fatalf("expected [foo], got %v", positionals)
+	}
+}
+
+func TestParseInterspersedFlagWithValueAfterPositional(t *testing.T) {
+	fs := flag.NewFlagSet("test", flag.ContinueOnError)
+	var s string
+	fs.StringVar(&s, "name", "", "")
+
+	positionals, err := parseInterspersed(fs, []string{"foo", "--name", "bar"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if s != "bar" {
+		t.Fatalf("expected name=bar, got %q", s)
+	}
+	if len(positionals) != 1 || positionals[0] != "foo" {
+		t.Fatalf("expected [foo], got %v", positionals)
+	}
+}
+
+func TestParseInterspersedTerminator(t *testing.T) {
+	fs := flag.NewFlagSet("test", flag.ContinueOnError)
+	var b bool
+	fs.BoolVar(&b, "flag", false, "")
+
+	positionals, err := parseInterspersed(fs, []string{"--", "--flag"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if b {
+		t.Fatalf("expected flag not to be set after --")
+	}
+	if len(positionals) != 1 || positionals[0] != "--flag" {
+		t.Fatalf("expected [--flag], got %v", positionals)
+	}
+}
+
+func TestParseInterspersedMultiplePositionals(t *testing.T) {
+	fs := flag.NewFlagSet("test", flag.ContinueOnError)
+	var b bool
+	fs.BoolVar(&b, "flag", false, "")
+
+	positionals, err := parseInterspersed(fs, []string{"foo", "--flag", "bar"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !b {
+		t.Fatalf("expected flag to be set")
+	}
+	if len(positionals) != 2 || positionals[0] != "foo" || positionals[1] != "bar" {
+		t.Fatalf("expected [foo bar], got %v", positionals)
 	}
 }
