@@ -152,6 +152,86 @@ func TestHandleMouseFilterClick(t *testing.T) {
 	}
 }
 
+func TestHandleMouseStackedBarClick(t *testing.T) {
+	old := &analyzer.Entry{Path: "/dir/old.txt", Name: "old.txt", Size: 10}
+	dup := &analyzer.Entry{Path: "/dir/dup.txt", Name: "dup.txt", Size: 10}
+	log := &analyzer.Entry{Path: "/dir/log.txt", Name: "log.txt", Size: 10}
+
+	parent := entry("dir", "/dir", 30, true)
+	old.Parent = parent
+	dup.Parent = parent
+	log.Parent = parent
+
+	m := New([]*analyzer.Entry{parent}, "", false, nil, analyzer.DupHashSmart, 100)
+	m.hints = []*analyzer.DeletabilityHint{
+		{Entry: old, Reason: analyzer.ReasonOld},
+		{Entry: dup, Reason: analyzer.ReasonDuplicate},
+		{Entry: log, Reason: analyzer.ReasonLogCache},
+	}
+	m.view = viewAnalyzer
+
+	summary := analyzer.SummarizeHints(m.hints)
+	wOld, wDup, _ := stackedBarSegments(summary, stackedBarWidth)
+
+	cases := []struct {
+		name     string
+		x        int
+		expected analyzer.HintReason
+	}{
+		{"old segment", 2 + wOld/2, analyzer.ReasonOld},
+		{"duplicate segment", 2 + wOld + wDup/2, analyzer.ReasonDuplicate},
+		{"log/cache segment", 2 + wOld + wDup + 1, analyzer.ReasonLogCache},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			m.analyzerFilter = ""
+			m.handleMouse(tea.MouseMsg{Type: tea.MouseLeft, X: tc.x, Y: analyzerStackedBarLineY})
+			if m.analyzerFilter != tc.expected {
+				t.Fatalf("expected %q filter, got %q", tc.expected, m.analyzerFilter)
+			}
+		})
+	}
+
+	// Clicks outside the bar (before indent) should be ignored.
+	m.analyzerFilter = analyzer.ReasonOld
+	m.handleMouse(tea.MouseMsg{Type: tea.MouseLeft, X: 0, Y: analyzerStackedBarLineY})
+	if m.analyzerFilter != analyzer.ReasonOld {
+		t.Fatalf("filter should not change on click outside bar, got %q", m.analyzerFilter)
+	}
+}
+
+func TestHandleMouseStackedBarClick_ZeroWidthSegment(t *testing.T) {
+	old := &analyzer.Entry{Path: "/dir/old.txt", Name: "old.txt", Size: 10}
+	dup := &analyzer.Entry{Path: "/dir/dup.txt", Name: "dup.txt", Size: 10}
+
+	parent := entry("dir", "/dir", 20, true)
+	old.Parent = parent
+	dup.Parent = parent
+
+	m := New([]*analyzer.Entry{parent}, "", false, nil, analyzer.DupHashSmart, 100)
+	m.hints = []*analyzer.DeletabilityHint{
+		{Entry: old, Reason: analyzer.ReasonOld},
+		{Entry: dup, Reason: analyzer.ReasonDuplicate},
+	}
+	m.view = viewAnalyzer
+
+	// Confirm the log/cache segment really has zero width for this data set.
+	summary := analyzer.SummarizeHints(m.hints)
+	_, _, wLog := stackedBarSegments(summary, stackedBarWidth)
+	if wLog != 0 {
+		t.Fatalf("expected log/cache segment width 0, got %d", wLog)
+	}
+
+	// A click on the remaining log/cache portion falls through to the last
+	// non-zero segment (duplicate) because the bar is filled entirely across
+	// the width.
+	m.handleMouse(tea.MouseMsg{Type: tea.MouseLeft, X: 2 + stackedBarWidth - 1, Y: analyzerStackedBarLineY})
+	if m.analyzerFilter != analyzer.ReasonDuplicate {
+		t.Fatalf("expected duplicate filter for fallthrough click, got %q", m.analyzerFilter)
+	}
+}
+
 func TestCycleFilter(t *testing.T) {
 	fileA := entry("a.txt", "/dir/a.txt", 10, false)
 	parent := entry("dir", "/dir", 10, true, fileA)

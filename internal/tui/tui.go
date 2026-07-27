@@ -29,7 +29,13 @@ const (
 
 	// analyzerSummaryLineY is the 0-based Y position of the interactive
 	// analyzer summary line (header + blank + "Found X hints" + blank).
+	// WARNING: this must stay in sync with analyzerView() output.
 	analyzerSummaryLineY = 4
+
+	// analyzerStackedBarLineY is the 0-based Y position of the stacked bar
+	// rendered directly below the summary text.
+	// WARNING: this must stay in sync with analyzerView() output.
+	analyzerStackedBarLineY = analyzerSummaryLineY + 1
 
 	// stackedBarWidth is the total width of the stacked summary bar.
 	stackedBarWidth = 24
@@ -266,28 +272,53 @@ func (m *Model) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
-	// The summary line is rendered at a fixed Y offset in analyzerView:
-	// header (1 line), blank (1 line), "Found X hints" (1 line), blank (1 line), summary line.
-	if msg.Y != analyzerSummaryLineY {
-		return m, nil
-	}
-
 	summary := analyzer.SummarizeHints(m.hints)
-	cats := m.summaryCategories(summary)
-
-	var x int
-	for _, cat := range cats {
-		s := cat.String()
-		// The clickable region covers the category text only.
-		w := len(s)
-		if msg.X >= x && msg.X < x+w {
-			m.toggleFilter(cat.Reason)
-			return m, nil
-		}
-		// advance past this category and the ", " separator
-		x += w + 2
+	switch msg.Y {
+	case analyzerSummaryLineY:
+		m.handleSummaryTextClick(summary, msg.X)
+	case analyzerStackedBarLineY:
+		m.handleStackedBarClick(summary, msg.X)
 	}
 	return m, nil
+}
+
+func (m *Model) handleSummaryTextClick(summary analyzer.HintSummary, x int) {
+	cats := m.summaryCategories(summary)
+	var pos int
+	for _, cat := range cats {
+		s := cat.String()
+		w := len(s)
+		if x >= pos && x < pos+w {
+			m.toggleFilter(cat.Reason)
+			return
+		}
+		pos += w + 2
+	}
+}
+
+func (m *Model) handleStackedBarClick(summary analyzer.HintSummary, x int) {
+	reason, ok := m.categoryAtX(summary, x)
+	if ok {
+		m.toggleFilter(reason)
+	}
+}
+
+// categoryAtX maps an X coordinate within the stacked bar to the corresponding
+// deletability category. The bar is indented by 2 spaces.
+func (m *Model) categoryAtX(summary analyzer.HintSummary, x int) (analyzer.HintReason, bool) {
+	x -= 2
+	if x < 0 || x >= stackedBarWidth {
+		return "", false
+	}
+	wOld, wDup, _ := stackedBarSegments(summary, stackedBarWidth)
+	switch {
+	case x < wOld:
+		return analyzer.ReasonOld, true
+	case x < wOld+wDup:
+		return analyzer.ReasonDuplicate, true
+	default:
+		return analyzer.ReasonLogCache, true
+	}
 }
 
 func (m *Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
@@ -935,29 +966,6 @@ func (m *Model) summaryCategories(summary analyzer.HintSummary) []summaryCategor
 		{Value: summary.Duplicate, Reason: analyzer.ReasonDuplicate, Label: pluralize(summary.Duplicate, "duplicate", "duplicates")},
 		{Value: summary.LogCache, Reason: analyzer.ReasonLogCache, Label: "log/cache"},
 	}
-}
-
-// categoryBar draws a small horizontal bar for n out of max with the given
-// fixed width. The result is always width characters long so the chart is
-// easy to scan visually.
-func categoryBar(n, max, width int) string {
-	if width <= 0 {
-		return ""
-	}
-	if max <= 0 {
-		return strings.Repeat("░", width)
-	}
-	if n < 0 {
-		n = 0
-	}
-	filled := int(float64(n) / float64(max) * float64(width))
-	if n > 0 && filled < 1 {
-		filled = 1
-	}
-	if filled > width {
-		filled = width
-	}
-	return strings.Repeat("█", filled) + strings.Repeat("░", width-filled)
 }
 
 // stackedBarSegments returns the widths of the old, duplicate, and log/cache
