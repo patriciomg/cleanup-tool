@@ -61,6 +61,42 @@ go build ./cmd/cleanup-tool
 | `-benchmark` | Run a non-interactive scan and print throughput stats | `false` |
 | `-version` | Print version and exit | `false` |
 
+## Configuration file
+
+`cleanup-tool` reads its configuration from `~/.config/cleanup-tool/config.json`.
+You can create and edit this file directly; CLI flags override the corresponding config values where applicable.
+
+Example `~/.config/cleanup-tool/config.json`:
+
+```json
+{
+  "version": 1,
+  "ignore_paths": [
+    "/System",
+    "/Volumes",
+    "/dev",
+    "/proc",
+    "/net",
+    "/private/var/db/timezone"
+  ],
+  "ignore_hidden": false,
+  "trash_only": true,
+  "dup_mode": "smart",
+  "progress_interval": 100
+}
+```
+
+### Configuration fields
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `version` | int | Config schema version (currently `1`) |
+| `ignore_paths` | list of strings | Absolute paths to skip during scans |
+| `ignore_hidden` | bool | Skip hidden files and directories by default |
+| `trash_only` | bool | **Reserved**: currently not enforced by the CLI |
+| `dup_mode` | string | Default duplicate-detection mode: `first10mb`, `sample`, `full`, `smart` |
+| `progress_interval` | int | Report scan/analyzer progress every N items |
+
 ## Key bindings
 
 ### File browser
@@ -233,6 +269,46 @@ Run a non-interactive scan before and after a cleanup session to see the speed a
 ### Keep scans fast
 
 Add folders you never want to scan (e.g. `~/Library/Caches`, `node_modules`) to the `ignore_paths` array in `~/.config/cleanup-tool/config.json`.
+
+## Troubleshooting
+
+### The TUI won't start
+
+- Make sure you are running in a terminal that supports a TTY. Some CI/IDE consoles don't work with Bubble Tea.
+- If colors cause rendering issues, try `TERM=xterm-256color ./cleanup-tool`.
+
+### Scanning is very slow
+
+- Skip hidden files with `-ignore-hidden`.
+- Add slow or uninteresting directories (e.g. `~/Library/Caches`, `node_modules`) to `ignore_paths` in `~/.config/cleanup-tool/config.json`.
+- Run `-benchmark -paths <dir>` to see the raw scan throughput.
+
+### Docker disk usage shows an error
+
+- Make sure Docker Desktop is running and `docker` is in your `PATH`.
+- The app runs `docker system df`, which needs a working Docker context but not root on macOS.
+
+### Move to external drive fails
+
+- Check that `-external` points to an existing directory and that you have write permissions.
+- Example: `-external /Volumes/MyDrive/cleanup-backups`.
+- Make sure `rsync` is installed (`which rsync`); the move action uses `rsync` under the hood.
+
+### I accidentally trashed something
+
+- In the file browser, press `u` to restore the last moved or trashed item.
+- If you already quit the app, open Trash in Finder and move the item back manually.
+
+### Duplicate detection is slow or uses too much CPU
+
+- Use `-dup-mode sample` for a faster, less exhaustive check.
+- `-dup-mode smart` (default) balances speed and accuracy.
+- `-dup-mode full` reads every byte of every file and is the slowest.
+
+### The config file isn't being read
+
+- Verify the file exists at `~/.config/cleanup-tool/config.json`.
+- If the JSON is invalid, the app prints `config load error:` and exits. Fix the JSON and try again.
 
 ## Releasing
 

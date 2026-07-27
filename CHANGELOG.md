@@ -21,6 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Persistent marks** across directory navigation so batch trash/move operations work on items selected in multiple folders.
 - **Directory label** in the file list Category column so folders are clearly shown as `Directory`.
 - Mouse support in the TUI for analyzer category filtering.
+- Unit tests for the custom `boolFlag` type used by the `-ignore-hidden` flag.
 
 ### Changed
 
@@ -31,6 +32,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Deadlock in the scanner when walking large directories.
 - Analyzer hit-test now covers the rendered bar chart, not just the category text.
+- The `-ignore-hidden` flag now honors the `ignore_hidden` value from the config file and can be overridden with `-ignore-hidden=false`.
 
 ### Documentation
 
@@ -38,6 +40,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Updated the roadmap to split features into Done and Coming soon.
 - Refreshed the Features list to match the roadmap.
 - Reorganized the Key bindings table by view to match the current TUI help bars.
+- Added a **Configuration file** reference section to `README.md` documenting `~/.config/cleanup-tool/config.json` and all supported fields.
 
 ## [0.1.0] - 2026-07-25
 
