@@ -43,6 +43,7 @@ func main() {
 		externalFlag     string
 		showVersion      bool
 		benchmark        bool
+		jsonOut          string
 		dupModeFlag      string
 		progressInterval int
 	)
@@ -54,6 +55,7 @@ func main() {
 	flag.Var(ignoreHiddenFlag, "ignore-hidden", "Ignore hidden files and directories")
 	flag.BoolVar(&showVersion, "version", false, "Show version")
 	flag.BoolVar(&benchmark, "benchmark", false, "Benchmark scan and print throughput to stdout")
+	flag.StringVar(&jsonOut, "json-out", "", "Export scan results to the specified JSON file (implies non-interactive)")
 	flag.StringVar(&dupModeFlag, "dup-mode", cfg.DupMode, "Duplicate detection mode: first10mb, sample, full, smart")
 	flag.IntVar(&progressInterval, "progress-interval", cfg.ProgressInterval, "Report analyzer progress every N files")
 	flag.Parse()
@@ -111,8 +113,8 @@ func main() {
 		os.Exit(1)
 	}
 
-	if benchmark {
-		runBenchmark(paths, cfg.IgnorePaths, ignoreHidden)
+	if benchmark || jsonOut != "" {
+		runNonInteractive(paths, cfg.IgnorePaths, ignoreHidden, benchmark, jsonOut)
 		return
 	}
 
@@ -170,7 +172,7 @@ func parseInterspersed(fs *flag.FlagSet, args []string) ([]string, error) {
 	return positionals, nil
 }
 
-func runBenchmark(paths []string, ignorePaths []string, ignoreHidden bool) {
+func runNonInteractive(paths []string, ignorePaths []string, ignoreHidden bool, benchmark bool, jsonOut string) {
 	start := time.Now()
 	scanner := analyzer.NewScanner(ignorePaths, ignoreHidden, 0)
 	roots, err := scanner.Scan(context.Background(), paths)
@@ -180,6 +182,20 @@ func runBenchmark(paths []string, ignorePaths []string, ignoreHidden bool) {
 		os.Exit(1)
 	}
 
+	if benchmark {
+		printBenchmarkStats(paths, roots, elapsed)
+	}
+
+	if jsonOut != "" {
+		if err := analyzer.ExportJSON(roots, jsonOut); err != nil {
+			fmt.Fprintf(os.Stderr, "json export error: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Printf("Exported scan results to %s\n", jsonOut)
+	}
+}
+
+func printBenchmarkStats(paths []string, roots []*analyzer.Entry, elapsed time.Duration) {
 	var totalFiles, totalDirs int64
 	var totalSize int64
 	for _, r := range roots {

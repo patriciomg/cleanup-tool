@@ -10,21 +10,21 @@ import (
 )
 
 type Entry struct {
-	Path       string
-	Name       string
-	Size       int64
-	Usage      int64
-	ModTime    time.Time
-	AccessTime time.Time
-	Mode       os.FileMode
-	IsDir      bool
-	Category   categories.Category
-	Children   []*Entry
-	Parent     *Entry
-	NumFiles   int64
-	NumDirs    int64
-	Scanned    bool
-	Error      error
+	Path       string              `json:"path"`
+	Name       string              `json:"name"`
+	Size       int64               `json:"size"`
+	Usage      int64               `json:"usage"`
+	ModTime    time.Time           `json:"modTime"`
+	AccessTime time.Time           `json:"accessTime"`
+	Mode       os.FileMode         `json:"mode"`
+	IsDir      bool                `json:"isDir"`
+	Category   categories.Category `json:"category"`
+	Children   []*Entry            `json:"children,omitempty"`
+	Parent     *Entry              `json:"-"`
+	NumFiles   int64               `json:"numFiles"`
+	NumDirs    int64               `json:"numDirs"`
+	Scanned    bool                `json:"scanned"`
+	Error      error             `json:"error,omitempty"`
 }
 
 func (e *Entry) TotalSize() int64 { return e.Size }
