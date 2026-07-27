@@ -170,7 +170,8 @@ func main() {
 			os.Exit(1)
 		}
 	case "dua":
-		if err := dua.RunWithScan(paths, cfg.IgnorePaths, ignoreHidden, progressInterval); err != nil {
+		dockerClient := docker.NewClient()
+		if err := dua.RunWithScan(paths, cfg.IgnorePaths, ignoreHidden, utils.ExpandHome(externalFlag), dockerClient, dupMode, progressInterval); err != nil {
 			fmt.Fprintf(os.Stderr, "dua error: %v\n", err)
 			os.Exit(1)
 		}

@@ -19,8 +19,24 @@ func makeTree() []*analyzer.Entry {
 	return []*analyzer.Entry{root}
 }
 
+func newModel(roots []*analyzer.Entry) *Model {
+	m := New(false, "", nil, analyzer.DupHashSmart, 100)
+	if roots != nil {
+		m.Update(scanMsg{roots: roots})
+	}
+	return m
+}
+
+func execCmd(m *Model, cmd tea.Cmd) *Model {
+	if cmd == nil {
+		return m
+	}
+	mod, _ := m.Update(cmd())
+	return mod.(*Model)
+}
+
 func TestHandleScanResult(t *testing.T) {
-	m := New(false)
+	m := newModel(nil)
 	roots := makeTree()
 	m.Update(scanMsg{roots: roots})
 
@@ -37,8 +53,7 @@ func TestHandleScanResult(t *testing.T) {
 }
 
 func TestDescendAndAscend(t *testing.T) {
-	m := New(false)
-	m.Update(scanMsg{roots: makeTree()})
+	m := newModel(makeTree())
 
 	m.Update(tea.KeyMsg{Type: tea.KeyEnter})
 	if m.current.Path != "/tmp/a" {
@@ -52,8 +67,7 @@ func TestDescendAndAscend(t *testing.T) {
 }
 
 func TestToggleMark(t *testing.T) {
-	m := New(false)
-	m.Update(scanMsg{roots: makeTree()})
+	m := newModel(makeTree())
 
 	m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'d'}})
 	if !m.marked["/tmp/a"] {
@@ -66,9 +80,9 @@ func TestToggleMark(t *testing.T) {
 }
 
 func TestViewDoesNotPanic(t *testing.T) {
-	m := New(false)
+	m := newModel(nil)
 	_ = m.View()
-	m.Update(scanMsg{roots: makeTree()})
+	m = newModel(makeTree())
 	v := m.View()
 	if !strings.Contains(v, "Dua-style Browser") {
 		t.Fatal("expected view to contain header")
@@ -76,11 +90,43 @@ func TestViewDoesNotPanic(t *testing.T) {
 }
 
 func TestHelpView(t *testing.T) {
-	m := New(false)
-	m.Update(scanMsg{roots: makeTree()})
+	m := newModel(makeTree())
 	m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'?'}})
 	v := m.View()
 	if !strings.Contains(v, "Dua-style browser key bindings") {
 		t.Fatal("expected help view to show key bindings")
+	}
+}
+
+func TestMoveWithoutExternalDirShowsError(t *testing.T) {
+	m := newModel(makeTree())
+	_, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'m'}})
+	m = execCmd(m, cmd)
+	v := m.View()
+	if !strings.Contains(v, "no external dir set") {
+		t.Fatalf("expected error message for missing external dir, got:\n%s", v)
+	}
+}
+
+func TestAnalyzerViewShowsHints(t *testing.T) {
+	m := newModel(makeTree())
+	m.hints = []*analyzer.DeletabilityHint{
+		{Entry: &analyzer.Entry{Path: "/tmp/old.log", Name: "old.log"}, Reason: analyzer.ReasonOld, Detail: "last accessed 2024-01-01"},
+		{Entry: &analyzer.Entry{Path: "/tmp/dup", Name: "dup"}, Reason: analyzer.ReasonDuplicate, Detail: "2 duplicates"},
+	}
+	m.view = viewAnalyzer
+	v := m.View()
+	if !strings.Contains(v, "Found 2 hints") {
+		t.Fatalf("expected analyzer view to show hint count, got:\n%s", v)
+	}
+}
+
+func TestDockerViewRequiresClient(t *testing.T) {
+	m := newModel(nil)
+	m.view = viewDocker
+	m.Update(m.fetchDockerUsage())
+	v := m.View()
+	if !strings.Contains(v, "docker client not available") {
+		t.Fatalf("expected docker client unavailable message, got:\n%s", v)
 	}
 }

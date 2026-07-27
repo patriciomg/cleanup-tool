@@ -308,7 +308,12 @@ bar for each item.
 | Backspace / h / u / Esc | Go to parent directory |
 | d | Mark / unmark selected item |
 | x | Trash marked items (or selected item if none marked) |
+| m | Move marked items (or selected item) to external drive (`-external`) |
+| r | Restore selected item from Trash |
 | c | Clear all marks |
+| a | Analyze current directory |
+| A | Analyze selected / marked items |
+| D | Open Docker disk usage |
 | ? | Toggle help |
 | q | Quit |
 

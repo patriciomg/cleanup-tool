@@ -10,6 +10,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Alternative `dua`-style interactive TUI (`-tui-style dua`) with a flat, size-sorted list, percentage/bar columns, and `dua i`-like keyboard navigation.
+- Analyzer support in dua mode: press `a` to analyze the current directory or `A` to analyze selected/marked items, with the same live progress, per-category summary, stacked bar, and filtering as the tree view.
+- Docker disk usage/prune support in dua mode: press `D` to view images, containers, volumes, and build cache, and `p` to prune the selected resource.
+- External move and restore support in dua mode: press `m` to move marked/selected items to the `-external` drive, and `r` to restore a selected item from Trash.
+- Full dependency wiring for dua mode: `-external`, `-dup-mode`, and Docker are now passed through to the dua TUI.
 - `-out` flag as a format-agnostic alias for writing scan exports (JSON, CSV, TSV, YAML) to a file.
 - `-stdout` flag as a clearer alias for `-json` that exports scan results to stdout with any `-format`.
 - Format auto-detection from the `-out` file extension: `.json`, `.csv`, `.tsv`, `.yaml`/`.yml`.
