@@ -10,7 +10,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - `-out` flag as a format-agnostic alias for writing scan exports (JSON, CSV, TSV, YAML) to a file.
-- Test coverage for `maybeWarnDeprecatedJSONOut`.
+- Format auto-detection from the `-out` file extension: `.json`, `.csv`, `.tsv`, `.yaml`/`.yml`.
+- Test coverage for `maybeWarnDeprecatedJSONOut` and `formatFromExtension`/`resolveFormat`.
+- Integration test verifying `-out` auto-detects CSV/YAML and explicit `-format` overrides the extension.
 
 ### Deprecated
 

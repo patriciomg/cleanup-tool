@@ -90,10 +90,8 @@ make watch-test
 | `-out` | Export scan results to the specified file (works with any `-format`) | `""` |
 | `-json-out` | Deprecated: use `-out` instead | `""` |
 | `-json` | Export scan results to stdout (non-interactive) | `false` |
-| `-format` | Export format: `json`, `csv`, `tsv`, `yaml` | `json` |
+| `-format` | Export format: `json`, `csv`, `tsv`, `yaml`. Defaults to `json`; auto-detected from `-out` extension when omitted. | `json` |
 | `-csv-columns` | Comma-separated CSV/TSV column names | `""` |
-| `-dup-mode` | Duplicate-detection hash mode: `first10mb`, `sample`, `full`, `smart` | `smart` |
-| `-progress-interval` | Report scan/analyzer progress every N items | `100` |
 
 ## Saved rules
 

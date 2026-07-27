@@ -63,7 +63,7 @@ func main() {
 	flag.StringVar(&out, "out", "", "Export scan results to the specified file (implies non-interactive)")
 	flag.StringVar(&jsonOut, "json-out", "", "Deprecated: use -out instead")
 	flag.BoolVar(&json, "json", false, "Export scan results to stdout (implies non-interactive)")
-	flag.StringVar(&format, "format", "json", "Export format for -json/-json-out: json, csv, tsv, yaml")
+	flag.StringVar(&format, "format", "json", "Export format: json, csv, tsv, yaml (default: json; auto-detected from -out extension when not specified)")
 	flag.StringVar(&csvColumns, "csv-columns", "", "Comma-separated CSV/TSV column names (default: all columns)")
 	flag.StringVar(&dupModeFlag, "dup-mode", cfg.DupMode, "Duplicate detection mode: first10mb, sample, full, smart")
 	flag.IntVar(&progressInterval, "progress-interval", cfg.ProgressInterval, "Report analyzer progress every N files")
@@ -123,16 +123,28 @@ func main() {
 	}
 
 	format = strings.ToLower(format)
+
+	maybeWarnDeprecatedJSONOut(os.Stderr, jsonOut)
+
+	out = effectiveOutputFile(out, jsonOut)
+
+	// Auto-detect format from -out file extension unless the user explicitly
+	// provided -format. An unknown extension is an error to avoid silently
+	// writing JSON (or another format) to a file with a misleading extension.
+	if !formatFlagExplicitlySet() && out != "" {
+		format, err = resolveFormat(out, format)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "format error: %v\n", err)
+			os.Exit(1)
+		}
+	}
+
 	switch format {
 	case "json", "csv", "tsv", "yaml":
 	default:
 		fmt.Fprintf(os.Stderr, "invalid format %q; valid: json, csv, tsv, yaml\n", format)
 		os.Exit(1)
 	}
-
-	maybeWarnDeprecatedJSONOut(os.Stderr, jsonOut)
-
-	out = effectiveOutputFile(out, jsonOut)
 
 	if benchmark || out != "" || json {
 		columns, err := parseCSVColumns(csvColumns)
@@ -264,6 +276,50 @@ func effectiveOutputFile(out, jsonOut string) string {
 		return jsonOut
 	}
 	return out
+}
+
+// formatFlagExplicitlySet returns true if the -format flag was provided on
+// the command line.
+func formatFlagExplicitlySet() bool {
+	var set bool
+	flag.Visit(func(f *flag.Flag) {
+		if f.Name == "format" {
+			set = true
+		}
+	})
+	return set
+}
+
+// formatFromExtension infers an export format from a file extension.
+// Supported: .json, .csv, .tsv, .yaml, .yml. Returns empty for unknown
+// extensions.
+func formatFromExtension(path string) string {
+	switch strings.ToLower(filepath.Ext(path)) {
+	case ".json":
+		return "json"
+	case ".csv":
+		return "csv"
+	case ".tsv":
+		return "tsv"
+	case ".yaml", ".yml":
+		return "yaml"
+	default:
+		return ""
+	}
+}
+
+// resolveFormat returns the format to use for the given output path. If the
+// path has a supported extension, that format is returned. If it has no
+// extension, the current default format is returned. If it has an unknown
+// extension, an error is returned.
+func resolveFormat(out, defaultFormat string) (string, error) {
+	if extFmt := formatFromExtension(out); extFmt != "" {
+		return extFmt, nil
+	}
+	if filepath.Ext(out) == "" {
+		return defaultFormat, nil
+	}
+	return "", fmt.Errorf("unsupported output extension %q; use -format to choose json, csv, tsv, or yaml", filepath.Ext(out))
 }
 
 func parseCSVColumns(s string) ([]string, error) {
