@@ -174,6 +174,42 @@ func TestCLIFormatAutoDetect(t *testing.T) {
 	}
 }
 
+func TestCLIDeprecatedJSONOut(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	root, err := findModuleRoot()
+	if err != nil {
+		t.Fatalf("finding module root: %v", err)
+	}
+	toolDir := filepath.Join(root, "cmd", "cleanup-tool")
+
+	tmp := t.TempDir()
+	legacyOut := filepath.Join(tmp, "legacy.json")
+
+	cmd := exec.Command("go", "run", ".", "-json-out", legacyOut, "-paths", "/tmp")
+	cmd.Dir = toolDir
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("-json-out command failed: %v\n%s", err, out)
+	}
+
+	// Deprecation warning goes to stderr (and is captured by CombinedOutput).
+	if !strings.Contains(string(out), "warning: -json-out is deprecated; use -out instead") {
+		t.Fatalf("expected deprecation warning on stderr, got: %s", out)
+	}
+
+	// The file should still be written as JSON.
+	data, err := os.ReadFile(legacyOut)
+	if err != nil {
+		t.Fatalf("reading legacy JSON output: %v", err)
+	}
+	if !strings.HasPrefix(strings.TrimSpace(string(data)), "[") {
+		t.Fatalf("expected JSON array in legacy output, got: %s", string(data)[:min(len(data), 50)])
+	}
+}
+
 func TestCLIStdoutFlag(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping integration test in short mode")
