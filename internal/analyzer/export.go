@@ -2,6 +2,7 @@ package analyzer
 
 import (
 	"encoding/json"
+	"io"
 	"os"
 )
 
@@ -12,8 +13,12 @@ func ExportJSON(roots []*Entry, path string) error {
 		return err
 	}
 	defer file.Close()
+	return ExportJSONWriter(roots, file)
+}
 
-	encoder := json.NewEncoder(file)
+// ExportJSONWriter writes the given scan roots as indented JSON to w.
+func ExportJSONWriter(roots []*Entry, w io.Writer) error {
+	encoder := json.NewEncoder(w)
 	encoder.SetIndent("", "  ")
 	return encoder.Encode(roots)
 }

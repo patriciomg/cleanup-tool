@@ -44,6 +44,7 @@ func main() {
 		showVersion      bool
 		benchmark        bool
 		jsonOut          string
+		json             bool
 		dupModeFlag      string
 		progressInterval int
 	)
@@ -56,6 +57,7 @@ func main() {
 	flag.BoolVar(&showVersion, "version", false, "Show version")
 	flag.BoolVar(&benchmark, "benchmark", false, "Benchmark scan and print throughput to stdout")
 	flag.StringVar(&jsonOut, "json-out", "", "Export scan results to the specified JSON file (implies non-interactive)")
+	flag.BoolVar(&json, "json", false, "Export scan results as JSON to stdout (implies non-interactive)")
 	flag.StringVar(&dupModeFlag, "dup-mode", cfg.DupMode, "Duplicate detection mode: first10mb, sample, full, smart")
 	flag.IntVar(&progressInterval, "progress-interval", cfg.ProgressInterval, "Report analyzer progress every N files")
 	flag.Parse()
@@ -113,8 +115,8 @@ func main() {
 		os.Exit(1)
 	}
 
-	if benchmark || jsonOut != "" {
-		runNonInteractive(paths, cfg.IgnorePaths, ignoreHidden, benchmark, jsonOut)
+	if benchmark || jsonOut != "" || json {
+		runNonInteractive(paths, cfg.IgnorePaths, ignoreHidden, benchmark, jsonOut, json)
 		return
 	}
 
@@ -172,7 +174,7 @@ func parseInterspersed(fs *flag.FlagSet, args []string) ([]string, error) {
 	return positionals, nil
 }
 
-func runNonInteractive(paths []string, ignorePaths []string, ignoreHidden bool, benchmark bool, jsonOut string) {
+func runNonInteractive(paths []string, ignorePaths []string, ignoreHidden bool, benchmark bool, jsonOut string, json bool) {
 	start := time.Now()
 	scanner := analyzer.NewScanner(ignorePaths, ignoreHidden, 0)
 	roots, err := scanner.Scan(context.Background(), paths)
@@ -192,6 +194,13 @@ func runNonInteractive(paths []string, ignorePaths []string, ignoreHidden bool, 
 			os.Exit(1)
 		}
 		fmt.Printf("Exported scan results to %s\n", jsonOut)
+	}
+
+	if json {
+		if err := analyzer.ExportJSONWriter(roots, os.Stdout); err != nil {
+			fmt.Fprintf(os.Stderr, "json export error: %v\n", err)
+			os.Exit(1)
+		}
 	}
 }
 
