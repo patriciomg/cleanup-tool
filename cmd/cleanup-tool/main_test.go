@@ -174,6 +174,51 @@ func TestCLIFormatAutoDetect(t *testing.T) {
 	}
 }
 
+func TestCLIStdoutFlag(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	root, err := findModuleRoot()
+	if err != nil {
+		t.Fatalf("finding module root: %v", err)
+	}
+	toolDir := filepath.Join(root, "cmd", "cleanup-tool")
+
+	// -stdout with default format writes JSON to stdout.
+	cmd := exec.Command("go", "run", ".", "-stdout", "-paths", "/tmp")
+	cmd.Dir = toolDir
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("-stdout default format failed: %v\n%s", err, out)
+	}
+	if !strings.HasPrefix(strings.TrimSpace(string(out)), "[") {
+		t.Fatalf("expected JSON array on stdout, got: %s", string(out)[:min(len(out), 50)])
+	}
+
+	// -stdout -format csv writes CSV to stdout.
+	cmd = exec.Command("go", "run", ".", "-stdout", "-format", "csv", "-paths", "/tmp")
+	cmd.Dir = toolDir
+	out, err = cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("-stdout csv failed: %v\n%s", err, out)
+	}
+	if !strings.HasPrefix(string(out), "Path,") {
+		t.Fatalf("expected CSV header on stdout, got: %s", string(out)[:min(len(out), 50)])
+	}
+
+	// -stdout -format yaml writes YAML to stdout.
+	cmd = exec.Command("go", "run", ".", "-stdout", "-format", "yaml", "-paths", "/tmp")
+	cmd.Dir = toolDir
+	out, err = cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("-stdout yaml failed: %v\n%s", err, out)
+	}
+	if !strings.HasPrefix(string(out), "- path:") {
+		t.Fatalf("expected YAML list on stdout, got: %s", string(out)[:min(len(out), 50)])
+	}
+}
+
 func min(a, b int) int {
 	if a < b {
 		return a

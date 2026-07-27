@@ -89,7 +89,8 @@ make watch-test
 | `-version` | Print version and exit | `false` |
 | `-out` | Export scan results to the specified file (works with any `-format`) | `""` |
 | `-json-out` | Deprecated: use `-out` instead | `""` |
-| `-json` | Export scan results to stdout (non-interactive) | `false` |
+| `-json` | Alias for `-stdout` (non-interactive) | `false` |
+| `-stdout` | Export scan results to stdout (works with any `-format`; non-interactive) | `false` |
 | `-format` | Export format: `json`, `csv`, `tsv`, `yaml`. Defaults to `json`; auto-detected from `-out` extension when omitted. | `json` |
 | `-csv-columns` | Comma-separated CSV/TSV column names | `""` |
 

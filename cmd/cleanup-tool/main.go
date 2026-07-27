@@ -47,6 +47,7 @@ func main() {
 		out              string
 		jsonOut          string
 		json             bool
+		stdout           bool
 		format           string
 		csvColumns       string
 		dupModeFlag      string
@@ -62,7 +63,8 @@ func main() {
 	flag.BoolVar(&benchmark, "benchmark", false, "Benchmark scan and print throughput to stdout")
 	flag.StringVar(&out, "out", "", "Export scan results to the specified file (implies non-interactive)")
 	flag.StringVar(&jsonOut, "json-out", "", "Deprecated: use -out instead")
-	flag.BoolVar(&json, "json", false, "Export scan results to stdout (implies non-interactive)")
+	flag.BoolVar(&json, "json", false, "Export scan results to stdout (non-interactive)")
+	flag.BoolVar(&stdout, "stdout", false, "Export scan results to stdout (works with any -format; alias for -json)")
 	flag.StringVar(&format, "format", "json", "Export format: json, csv, tsv, yaml (default: json; auto-detected from -out extension when not specified)")
 	flag.StringVar(&csvColumns, "csv-columns", "", "Comma-separated CSV/TSV column names (default: all columns)")
 	flag.StringVar(&dupModeFlag, "dup-mode", cfg.DupMode, "Duplicate detection mode: first10mb, sample, full, smart")
@@ -146,13 +148,13 @@ func main() {
 		os.Exit(1)
 	}
 
-	if benchmark || out != "" || json {
+	if benchmark || out != "" || json || stdout {
 		columns, err := parseCSVColumns(csvColumns)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "csv-columns error: %v\n", err)
 			os.Exit(1)
 		}
-		runNonInteractive(paths, cfg.IgnorePaths, ignoreHidden, benchmark, out, json, format, columns)
+		runNonInteractive(paths, cfg.IgnorePaths, ignoreHidden, benchmark, out, json || stdout, format, columns)
 		return
 	}
 
