@@ -533,6 +533,7 @@ gpg --verify cleanup-tool-<version>-darwin-universal.tar.gz.asc \
 
 ### Coming soon
 
+- [ ] Remove deprecated `-json-out` flag (use `-out` instead) — tracked in `.github/ISSUE_TEMPLATE/remove-deprecated-json-out-flag.md`
 - [ ] LLM registry cleanup (Ollama, Hugging Face cache, LM Studio)
 - [ ] Export scan results to JSON
 - [ ] Native Homebrew formula
