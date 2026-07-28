@@ -31,7 +31,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Refreshed README screenshots to show the dua-style view as the default, followed by the terminal-style tree browser.
 - Reordered the demo/asciinema section: the default record command now captures the dua-style view; added a second command for the terminal-style view.
 - Added a "default view" callout near the top and a one-line CLI help note showing the default `-tui-style` value.
-- Updated the project tagline to describe the dua-style default and the terminal-style alternative.
+- Updated the project tagline to describe the dua-style default and the `terminal`-style alternative.
 - Added a "Use the default dua-style shortcuts" tip covering navigation, marking, trash, move, analyzer, and Docker.
 
 ### Deprecated
