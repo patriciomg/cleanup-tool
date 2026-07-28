@@ -11,7 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- Migrated the Homebrew formula to the dedicated tap repo `patriciomg/homebrew-cleanup-tool` and verified the release workflow auto-bumps it.
+- Migrated the Homebrew formula to the dedicated tap repo `patriciomg/homebrew-cleanup-tool`.
 
 ## [0.4.2] - 2026-07-28
 
