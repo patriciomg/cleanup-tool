@@ -81,7 +81,7 @@ func main() {
 	}
 
 	if showVersion {
-		fmt.Println("cleanup-tool v0.4.3")
+		fmt.Println("cleanup-tool v0.4.4")
 		return
 	}
 

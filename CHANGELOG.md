@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.4] - 2026-07-28
+
+### Fixed
+
+- Release workflow now fails fast with a clear error when `TAP_GITHUB_TOKEN` is missing, instead of falling back to `GITHUB_TOKEN` and receiving a 403 from the tap repo.
+
 ## [0.4.3] - 2026-07-28
 
 ### Changed
@@ -137,7 +143,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Bubble Tea-based TUI with size-sorted file navigation, directory drill-down, marking, trash, move to external drive, and restore.
 - Configurable ignore paths via `~/.config/cleanup-tool/config.json`.
 
-[Unreleased]: https://github.com/patriciomg/cleanup-tool/compare/v0.4.3...main
+[Unreleased]: https://github.com/patriciomg/cleanup-tool/compare/v0.4.4...main
+[0.4.4]: https://github.com/patriciomg/cleanup-tool/compare/v0.4.3...v0.4.4
 [0.4.3]: https://github.com/patriciomg/cleanup-tool/compare/v0.4.2...v0.4.3
 [0.4.2]: https://github.com/patriciomg/cleanup-tool/compare/v0.4.1...v0.4.2
 [0.4.1]: https://github.com/patriciomg/cleanup-tool/compare/v0.4.0...v0.4.1
