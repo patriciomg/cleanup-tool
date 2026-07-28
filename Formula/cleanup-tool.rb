@@ -5,7 +5,7 @@ class CleanupTool < Formula
   sha256 "7e04434b164f2c59fed17dcb8ed7488cf8327a16853680bf3a145dba59046a64"
   license "MIT"
 
-  depends_on :macos
+  depends_on macos: :big_sur
 
   def install
     bin.install "cleanup-tool"
