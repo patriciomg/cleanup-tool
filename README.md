@@ -453,14 +453,19 @@ Total used: 34.0 GB
 You can capture a real terminal session with [asciinema](https://asciinema.org/):
 
 ```bash
-# Record
+# Record the default dua-style view
 asciinema rec cleanup-tool-demo.cast --command "./cleanup-tool -paths ~/kk,~/personal"
+
+# Record the terminal-style tree view instead
+asciinema rec cleanup-tool-terminal-demo.cast --command "./cleanup-tool -tui-style terminal -paths ~/kk,~/personal"
 
 # Play locally
 asciinema play cleanup-tool-demo.cast
+asciinema play cleanup-tool-terminal-demo.cast
 
 # Share (after uploading to asciinema.org)
 asciinema upload cleanup-tool-demo.cast
+asciinema upload cleanup-tool-terminal-demo.cast
 ```
 
 For a GIF, convert the cast with [agg](https://github.com/asciinema/agg) or record with a terminal GIF tool such as [vhs](https://github.com/charmbracelet/vhs).
