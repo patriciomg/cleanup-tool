@@ -6,7 +6,7 @@ A fast, terminal-based disk cleanup tool tailored for macOS developers who work 
 
 - **Parallel directory scanner** with bounded concurrency, live progress, and throughput stats
 - **Categorisation** of common space hogs: Docker, LLM models, build artifacts, dependencies, media, archives, logs, and caches
-- **Interactive TUI** (powered by [Bubble Tea](https://github.com/charmbracelet/bubbletea)) with a tree-style file browser sorted by size
+- **Interactive TUI** (powered by [Bubble Tea](https://github.com/charmbracelet/bubbletea)) with a terminal-style file browser sorted by size
 - **Safe actions**: move to Trash, move to an external drive via `rsync`, and restore
 - **Batch operations**: mark and act on items across multiple directories
 - **Configurable ignore paths** via `~/.config/cleanup-tool/config.json`
@@ -280,7 +280,7 @@ Example `~/.config/cleanup-tool/config.json`:
 
 ### File browser (terminal style)
 
-The classic tree/terminal-style file browser. Select it with `-tui-style terminal` (`tree` is still accepted as an alias).
+The classic terminal-style file browser. Select it with `-tui-style terminal` (`tree` is still accepted as an alias).
 
 | Key | Action |
 |-----|--------|
@@ -596,7 +596,7 @@ gpg --verify cleanup-tool-<version>-darwin-universal.tar.gz.asc \
 ### Done
 
 - [x] Parallel directory scanner with real-time progress and throughput stats
-- [x] Tree view with expand/collapse in the file browser
+- [x] Terminal-style tree view with expand/collapse in the file browser
 - [x] Categorisation of common space hogs (Docker, LLMs, build artifacts, deps, media, archives, logs, caches)
 - [x] Configurable ignore paths via `~/.config/cleanup-tool/config.json`
 - [x] Duplicate file detection with configurable hashing modes

@@ -24,6 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - The default interactive TUI style is now `dua`. The previous default (`tree`) is now named `terminal`, with `tree` kept as an alias.
 - README key bindings and CLI flag docs now refer to the `terminal` style and note that `dua` is the default.
+- The terminal/tree-style TUI implementation was moved from `internal/tui` to `internal/tui/terminal` (package `terminal`) to mirror the `internal/tui/dua` layout.
 
 ### Deprecated
 

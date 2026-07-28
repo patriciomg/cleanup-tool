@@ -14,8 +14,8 @@ import (
 	"github.com/patriciomg/cleanup-tool/internal/analyzer"
 	"github.com/patriciomg/cleanup-tool/internal/config"
 	"github.com/patriciomg/cleanup-tool/internal/docker"
-	"github.com/patriciomg/cleanup-tool/internal/tui"
 	"github.com/patriciomg/cleanup-tool/internal/tui/dua"
+	"github.com/patriciomg/cleanup-tool/internal/tui/terminal"
 	"github.com/patriciomg/cleanup-tool/internal/utils"
 )
 
@@ -170,8 +170,8 @@ func main() {
 	switch style {
 	case "terminal":
 		dockerClient := docker.NewClient()
-		if err := tui.RunWithScan(paths, cfg.IgnorePaths, ignoreHidden, utils.ExpandHome(externalFlag), dockerClient, dupMode, progressInterval); err != nil {
-			fmt.Fprintf(os.Stderr, "tui error: %v\n", err)
+		if err := terminal.RunWithScan(paths, cfg.IgnorePaths, ignoreHidden, utils.ExpandHome(externalFlag), dockerClient, dupMode, progressInterval); err != nil {
+			fmt.Fprintf(os.Stderr, "terminal error: %v\n", err)
 			os.Exit(1)
 		}
 	case "dua":
