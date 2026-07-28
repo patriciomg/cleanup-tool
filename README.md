@@ -2,11 +2,13 @@
 
 A fast, terminal-based disk cleanup tool tailored for macOS developers who work with Docker, LLMs, and build artifacts.
 
+> **Default view:** `cleanup-tool` opens in the **dua-style** interactive browser. Use `-tui-style terminal` to switch to the classic tree-style browser.
+
 ## Features
 
 - **Parallel directory scanner** with bounded concurrency, live progress, and throughput stats
 - **Categorisation** of common space hogs: Docker, LLM models, build artifacts, dependencies, media, archives, logs, and caches
-- **Interactive TUI** (powered by [Bubble Tea](https://github.com/charmbracelet/bubbletea)) with a terminal-style file browser sorted by size
+- **Interactive TUI** (powered by [Bubble Tea](https://github.com/charmbracelet/bubbletea)) with a dua-style file browser by default and a terminal-style tree browser as an alternative
 - **Safe actions**: move to Trash, move to an external drive via `rsync`, and restore
 - **Batch operations**: mark and act on items across multiple directories
 - **Configurable ignore paths** via `~/.config/cleanup-tool/config.json`
