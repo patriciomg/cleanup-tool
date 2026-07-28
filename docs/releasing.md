@@ -67,9 +67,10 @@ gpg --verify dist/cleanup-tool-<version>-darwin-universal.tar.gz.asc \
 
 The repository includes a native Homebrew formula at [`Formula/cleanup-tool.rb`](../Formula/cleanup-tool.rb). The release workflow automatically updates the formula's `url`, `version`, and `sha256` after a release is published, so no manual editing is required for normal releases.
 
-Users can install or update the tool via Homebrew:
+Users can install or update the tool via Homebrew. Because the formula lives in this repository rather than a separate `homebrew-cleanup-tool` repo, users must tap the repository explicitly first:
 
 ```bash
+brew tap patriciomg/cleanup-tool https://github.com/patriciomg/cleanup-tool.git
 brew install patriciomg/cleanup-tool/cleanup-tool
 ```
 
@@ -82,6 +83,7 @@ Homebrew 4.1+ treats third-party taps as untrusted by default and may refuse to 
 Users can trust the formula before installing:
 
 ```bash
+brew tap patriciomg/cleanup-tool https://github.com/patriciomg/cleanup-tool.git
 brew trust --formula patriciomg/cleanup-tool/cleanup-tool
 brew install patriciomg/cleanup-tool/cleanup-tool
 ```
@@ -89,6 +91,7 @@ brew install patriciomg/cleanup-tool/cleanup-tool
 Or trust the entire tap once:
 
 ```bash
+brew tap patriciomg/cleanup-tool https://github.com/patriciomg/cleanup-tool.git
 brew trust patriciomg/cleanup-tool
 brew install patriciomg/cleanup-tool/cleanup-tool
 ```
