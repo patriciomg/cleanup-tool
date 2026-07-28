@@ -120,17 +120,19 @@ jobs:
             exit 0
           fi
 
+          # Compute the new tarball URL and checksum while on the tag.
           tarball="dist/cleanup-tool-${tag}-darwin-universal.tar.gz"
           sha256="$(shasum -a 256 "$tarball" | awk '{print $1}')"
           url="https://github.com/patriciomg/cleanup-tool/releases/download/${tag}/cleanup-tool-${tag}-darwin-universal.tar.gz"
 
-          sed -i '' "s|url \"[^\"]*\"|url \"$url\"|" Formula/cleanup-tool.rb
-          sed -i '' "s/sha256 \"[^\"]*\"/sha256 \"$sha256\"/" Formula/cleanup-tool.rb
-
-          git checkout main
-          git pull --rebase origin main
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
+          git checkout main
+          git pull --rebase origin main
+
+          # Apply the bump on main after pulling, so the working tree is clean.
+          sed -i '' "s|url \"[^\"]*\"|url \"$url\"|" Formula/cleanup-tool.rb
+          sed -i '' "s/sha256 \"[^\"]*\"/sha256 \"$sha256\"/" Formula/cleanup-tool.rb
           git add Formula/cleanup-tool.rb
           git commit -m "chore(formula): bump cleanup-tool to $tag" || exit 0
 
