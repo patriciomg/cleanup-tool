@@ -22,6 +22,7 @@ import (
 	"github.com/patriciomg/cleanup-tool/internal/actions"
 	"github.com/patriciomg/cleanup-tool/internal/analyzer"
 	"github.com/patriciomg/cleanup-tool/internal/docker"
+	"github.com/patriciomg/cleanup-tool/internal/llm"
 	"github.com/patriciomg/cleanup-tool/internal/tui/common"
 )
 
@@ -33,6 +34,8 @@ const (
 	viewDocker
 	viewDockerConfirm
 	viewAnalyzer
+	viewModels
+	viewModelsConfirm
 
 	// stackedBarWidth is the total width of the stacked summary bar.
 	stackedBarWidth = 24
@@ -74,6 +77,12 @@ type Model struct {
 	dupMode          analyzer.DupHashMode
 	progressInterval int
 	view             viewState
+	llmClient        llm.Client
+	llmRegistries    []llm.Registry
+	llmSelectedReg   int
+	llmSelectedModel int
+	llmErr           error
+	llmMsg           string
 }
 
 // scanMsg is sent when the background scan finishes.
@@ -101,6 +110,7 @@ func New(scanning bool, externalDir string, dockerClient docker.Client, dupMode 
 		marked:           make(map[string]bool),
 		externalDir:      externalDir,
 		dockerClient:     dockerClient,
+		llmClient:        llm.NewClient(),
 		dupMode:          dupMode,
 		progressInterval: progressInterval,
 	}
@@ -188,6 +198,21 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.dockerMsg = fmt.Sprintf("Reclaimed %s", analyzer.PrettySize(msg.reclaimed))
 		}
 		return m, m.fetchDockerUsage
+	case llmMsg:
+		if msg.err != nil {
+			m.llmErr = msg.err
+		} else {
+			m.llmRegistries = msg.registries
+			m.llmErr = nil
+		}
+	case llmDeleteMsg:
+		if msg.err != nil {
+			m.llmErr = msg.err
+			m.llmMsg = "Delete failed: " + msg.err.Error()
+		} else {
+			m.llmMsg = fmt.Sprintf("Deleted %s from %s", msg.model, msg.registry)
+			return m, m.fetchLLMRegistries
+		}
 	case analyzerProgressMsg:
 		m.analyzerProg = analyzer.AnalyzerProgress(msg)
 		return m, m.readAnalyzerUpdate
@@ -240,6 +265,10 @@ func (m *Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.handleDockerKey(msg)
 	case viewAnalyzer:
 		return m.handleAnalyzerKey(msg)
+	case viewModels:
+		return m.handleModelsKey(msg)
+	case viewModelsConfirm:
+		return m.handleModelsConfirmKey(msg)
 	}
 
 	if m.showHelp {
@@ -302,6 +331,15 @@ func (m *Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.dockerMsg = ""
 		m.err = nil
 		return m, m.fetchDockerUsage
+	case "M":
+		m.view = viewModels
+		m.llmSelectedReg = 0
+		m.llmSelectedModel = 0
+		m.llmErr = nil
+		m.llmMsg = ""
+		m.err = nil
+		m.msg = ""
+		return m, m.fetchLLMRegistries
 	case "?":
 		m.showHelp = true
 	}
@@ -591,6 +629,10 @@ func (m *Model) View() string {
 		return m.dockerConfirmView()
 	case viewAnalyzer:
 		return m.analyzerView()
+	case viewModels:
+		return m.modelsView()
+	case viewModelsConfirm:
+		return m.modelsConfirmView()
 	}
 	if m.showHelp {
 		return m.helpView()
@@ -638,7 +680,7 @@ func (m *Model) View() string {
 	hints := []string{
 		"[j/k/↓/↑] nav", "[enter/l] descend", "[backspace/h/u] up",
 		"[d] mark", "[x] trash", "[m] move", "[r] restore",
-		"[a] analyze dir", "[A] analyze selection", "[D] Docker", "[c] clear", "[?] help", "[q] quit",
+		"[a] analyze dir", "[A] analyze selection", "[D] Docker", "[M] Models", "[c] clear", "[?] help", "[q] quit",
 	}
 	b.WriteString("\n" + common.FormatHelpBar(m.width, hints) + "\n")
 	return b.String()
@@ -677,6 +719,7 @@ func (m *Model) helpView() string {
 		"  a            analyze current directory",
 		"  A            analyze selected/marked items",
 		"  D            show Docker disk usage",
+		"  M            show LLM model registries",
 		"  ?            toggle this help",
 		"  q            quit",
 		"",
@@ -1054,6 +1097,192 @@ func (m *Model) pruneDockerSelected() tea.Msg {
 	}
 	reclaimed, err := m.dockerClient.Prune(context.Background(), items[m.dockerSelected])
 	return dockerPruneMsg{reclaimed: reclaimed, err: err}
+}
+
+// --- LLM model registry ---
+
+type llmMsg struct {
+	registries []llm.Registry
+	err        error
+}
+
+type llmDeleteMsg struct {
+	registry string
+	model    string
+	err      error
+}
+
+func (m *Model) fetchLLMRegistries() tea.Msg {
+	if m.llmClient == nil {
+		return llmMsg{err: fmt.Errorf("llm client not available")}
+	}
+	regs, err := m.llmClient.GetRegistries(context.Background())
+	return llmMsg{registries: regs, err: err}
+}
+
+func (m *Model) handleModelsKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "q", "ctrl+c":
+		return m, tea.Quit
+	case "esc":
+		m.view = viewFiles
+		return m, nil
+	case "up", "k":
+		m.navigateModelsUp()
+	case "down", "j":
+		m.navigateModelsDown()
+	case "d":
+		m.view = viewModelsConfirm
+		return m, nil
+	case "r":
+		m.llmErr = nil
+		m.llmMsg = ""
+		return m, m.fetchLLMRegistries
+	}
+	return m, nil
+}
+
+func (m *Model) handleModelsConfirmKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "y":
+		m.view = viewModels
+		return m, m.deleteSelectedModel()
+	case "n", "esc":
+		m.view = viewModels
+		return m, nil
+	case "q", "ctrl+c":
+		return m, tea.Quit
+	}
+	return m, nil
+}
+
+func (m *Model) navigateModelsUp() {
+	if len(m.llmRegistries) == 0 {
+		return
+	}
+	if m.llmSelectedModel > 0 {
+		m.llmSelectedModel--
+		return
+	}
+	// Move to the last model of the previous non-empty registry.
+	for m.llmSelectedReg > 0 {
+		m.llmSelectedReg--
+		prev := m.llmRegistries[m.llmSelectedReg]
+		if len(prev.Models) > 0 {
+			m.llmSelectedModel = len(prev.Models) - 1
+			return
+		}
+	}
+}
+
+func (m *Model) navigateModelsDown() {
+	if len(m.llmRegistries) == 0 {
+		return
+	}
+	reg := m.llmRegistries[m.llmSelectedReg]
+	if m.llmSelectedModel < len(reg.Models)-1 {
+		m.llmSelectedModel++
+		return
+	}
+	if m.llmSelectedReg < len(m.llmRegistries)-1 {
+		m.llmSelectedReg++
+		m.llmSelectedModel = 0
+	}
+}
+
+func (m *Model) selectedModel() (llm.Registry, llm.Model, bool) {
+	if m.llmSelectedReg >= len(m.llmRegistries) {
+		return llm.Registry{}, llm.Model{}, false
+	}
+	reg := m.llmRegistries[m.llmSelectedReg]
+	if m.llmSelectedModel >= len(reg.Models) {
+		return reg, llm.Model{}, false
+	}
+	return reg, reg.Models[m.llmSelectedModel], true
+}
+
+func (m *Model) deleteSelectedModel() tea.Cmd {
+	reg, model, ok := m.selectedModel()
+	if !ok {
+		return nil
+	}
+	return func() tea.Msg {
+		if err := m.llmClient.DeleteModel(context.Background(), reg.Name, model.Name); err != nil {
+			return llmDeleteMsg{registry: reg.Name, model: model.Name, err: err}
+		}
+		return llmDeleteMsg{registry: reg.Name, model: model.Name}
+	}
+}
+
+func (m *Model) modelsView() string {
+	var b strings.Builder
+	b.WriteString(common.HeaderStyle.Render("LLM Model Registries"))
+	b.WriteString("\n\n")
+	if m.llmErr != nil {
+		b.WriteString(common.DangerStyle.Render("Error: "+m.llmErr.Error()) + "\n")
+		b.WriteString("\n" + common.FormatHelpBar(m.width, []string{"[esc] back", "[q] quit"}) + "\n")
+		return b.String()
+	}
+
+	if m.llmClient == nil {
+		b.WriteString(m.spinner.View() + " Loading LLM registries...\n")
+		b.WriteString("\n" + common.FormatHelpBar(m.width, []string{"[esc] back", "[q] quit"}) + "\n")
+		return b.String()
+	}
+
+	if len(m.llmRegistries) == 0 {
+		b.WriteString("No LLM registries found.\n")
+		b.WriteString("\n" + common.FormatHelpBar(m.width, []string{"[esc] back", "[q] quit"}) + "\n")
+		return b.String()
+	}
+
+	b.WriteString(fmt.Sprintf("%-20s %-12s %s\n", "Registry", "Models", "Size"))
+	for i, reg := range m.llmRegistries {
+		line := fmt.Sprintf("%-20s %-12d %s", reg.Name, len(reg.Models), analyzer.PrettySize(reg.TotalSize()))
+		if i == m.llmSelectedReg {
+			line = common.SelectStyle.Render(line)
+		}
+		b.WriteString(line + "\n")
+	}
+
+	if m.llmSelectedReg < len(m.llmRegistries) {
+		reg := m.llmRegistries[m.llmSelectedReg]
+		b.WriteString("\n")
+		b.WriteString(fmt.Sprintf("Models in %s\n", reg.Name))
+		b.WriteString(fmt.Sprintf("%-40s %s\n", "Name", "Size"))
+		for i, model := range reg.Models {
+			line := fmt.Sprintf("%-40s %s", common.Truncate(model.Name, 38), analyzer.PrettySize(model.Size))
+			if i == m.llmSelectedModel {
+				line = common.SelectStyle.Render(line)
+			}
+			b.WriteString(line + "\n")
+		}
+	}
+
+	if m.llmMsg != "" {
+		b.WriteString("\n" + common.MsgStyle.Render(m.llmMsg) + "\n")
+	}
+	hints := []string{"[↑/↓/j/k] navigate", "[d] delete model", "[r] refresh", "[esc] back", "[q] quit"}
+	b.WriteString("\n" + common.FormatHelpBar(m.width, hints) + "\n")
+	return b.String()
+}
+
+func (m *Model) modelsConfirmView() string {
+	var b strings.Builder
+	b.WriteString(common.HeaderStyle.Render("Confirm model deletion"))
+	b.WriteString("\n\n")
+
+	reg, model, ok := m.selectedModel()
+	if !ok {
+		b.WriteString("No model selected.\n")
+		b.WriteString("\n" + common.FormatHelpBar(m.width, []string{"[esc] back"}) + "\n")
+		return b.String()
+	}
+
+	b.WriteString(fmt.Sprintf("Delete %s from %s (%s)? This cannot be undone.\n\n",
+		model.Name, reg.Name, analyzer.PrettySize(model.Size)))
+	b.WriteString(common.FormatHelpBar(m.width, []string{"[y] yes", "[n] no"}) + "\n")
+	return b.String()
 }
 
 func findEntryByPath(roots []*analyzer.Entry, target string) *analyzer.Entry {
