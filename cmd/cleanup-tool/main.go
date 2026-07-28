@@ -162,8 +162,13 @@ func main() {
 	}
 
 	tuiStyle = strings.ToLower(tuiStyle)
-	switch tuiStyle {
-	case "terminal", "tree", "":
+	style, err := resolveTUIStyle(tuiStyle)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "invalid -tui-style %q; valid: terminal, dua\n", tuiStyle)
+		os.Exit(1)
+	}
+	switch style {
+	case "terminal":
 		dockerClient := docker.NewClient()
 		if err := tui.RunWithScan(paths, cfg.IgnorePaths, ignoreHidden, utils.ExpandHome(externalFlag), dockerClient, dupMode, progressInterval); err != nil {
 			fmt.Fprintf(os.Stderr, "tui error: %v\n", err)
@@ -175,9 +180,6 @@ func main() {
 			fmt.Fprintf(os.Stderr, "dua error: %v\n", err)
 			os.Exit(1)
 		}
-	default:
-		fmt.Fprintf(os.Stderr, "invalid -tui-style %q; valid: terminal, dua\n", tuiStyle)
-		os.Exit(1)
 	}
 }
 
@@ -391,4 +393,20 @@ func printBenchmarkStats(paths []string, roots []*analyzer.Entry, elapsed time.D
 	fmt.Printf("Total size: %s\n", analyzer.PrettySize(totalSize))
 }
 
+// resolveTUIStyle normalises a -tui-style value. It accepts "dua" for the
+// dua-style browser and "terminal" or "tree" (legacy alias) for the
+// terminal/tree-style browser. An empty string maps to the default style,
+// which is currently "dua".
+func resolveTUIStyle(style string) (string, error) {
+	switch strings.ToLower(style) {
+	case "":
+		return "dua", nil
+	case "terminal", "tree":
+		return "terminal", nil
+	case "dua":
+		return "dua", nil
+	default:
+		return "", fmt.Errorf("invalid TUI style %q", style)
+	}
+}
 

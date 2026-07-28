@@ -310,3 +310,69 @@ func TestParseCSVColumns(t *testing.T) {
 		}
 	}
 }
+
+func TestResolveTUIStyle(t *testing.T) {
+	cases := []struct {
+		input   string
+		want    string
+		wantErr bool
+	}{
+		{"", "dua", false},
+		{"dua", "dua", false},
+		{"terminal", "terminal", false},
+		{"tree", "terminal", false},
+		{"DUA", "dua", false},
+		{"Terminal", "terminal", false},
+		{"invalid", "", true},
+	}
+
+	for _, tc := range cases {
+		got, err := resolveTUIStyle(tc.input)
+		if tc.wantErr {
+			if err == nil {
+				t.Fatalf("resolveTUIStyle(%q) expected error, got nil", tc.input)
+			}
+			continue
+		}
+		if err != nil {
+			t.Fatalf("resolveTUIStyle(%q) unexpected error: %v", tc.input, err)
+		}
+		if got != tc.want {
+			t.Fatalf("resolveTUIStyle(%q) = %q, want %q", tc.input, got, tc.want)
+		}
+	}
+}
+
+func TestTUIStyleSmoke(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	root, err := findModuleRoot()
+	if err != nil {
+		t.Fatalf("finding module root: %v", err)
+	}
+	toolDir := filepath.Join(root, "cmd", "cleanup-tool")
+
+	// The help output should show dua as the default value.
+	cmd := exec.Command("go", "run", ".", "-help")
+	cmd.Dir = toolDir
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("-help failed: %v\n%s", err, out)
+	}
+	if !strings.Contains(string(out), `-tui-style`) || !strings.Contains(string(out), `default "dua"`) {
+		t.Fatalf("expected -tui-style help to show 'dua' as default, got:\n%s", out)
+	}
+
+	// An invalid style is rejected with a helpful error.
+	cmd = exec.Command("go", "run", ".", "-tui-style", "invalid_style")
+	cmd.Dir = toolDir
+	out, err = cmd.CombinedOutput()
+	if err == nil {
+		t.Fatalf("expected error for invalid tui-style, got none")
+	}
+	if !strings.Contains(string(out), "invalid -tui-style") || !strings.Contains(string(out), "valid: terminal, dua") {
+		t.Fatalf("expected invalid tui-style error, got:\n%s", out)
+	}
+}
