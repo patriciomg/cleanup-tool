@@ -5,6 +5,14 @@ All notable changes to `cleanup-tool` will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+## [0.4.3] - 2026-07-28
+
+### Changed
+
+- Migrated the Homebrew formula to the dedicated tap repo `patriciomg/homebrew-cleanup-tool` and verified the release workflow auto-bumps it.
+
 ## [0.4.2] - 2026-07-28
 
 ### Fixed
@@ -129,7 +137,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Bubble Tea-based TUI with size-sorted file navigation, directory drill-down, marking, trash, move to external drive, and restore.
 - Configurable ignore paths via `~/.config/cleanup-tool/config.json`.
 
-[Unreleased]: https://github.com/patriciomg/cleanup-tool/compare/v0.4.2...main
+[Unreleased]: https://github.com/patriciomg/cleanup-tool/compare/v0.4.3...main
+[0.4.3]: https://github.com/patriciomg/cleanup-tool/compare/v0.4.2...v0.4.3
 [0.4.2]: https://github.com/patriciomg/cleanup-tool/compare/v0.4.1...v0.4.2
 [0.4.1]: https://github.com/patriciomg/cleanup-tool/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/patriciomg/cleanup-tool/compare/v0.3.0...v0.4.0
