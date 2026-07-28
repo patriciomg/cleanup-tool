@@ -75,6 +75,26 @@ brew install patriciomg/cleanup-tool/cleanup-tool
 
 > **Note:** If `main` is protected or the default `GITHUB_TOKEN` cannot push, the formula auto-bump step will fail. Add a repository secret named `TAP_GITHUB_TOKEN` (a Personal Access Token with `repo` scope). The release workflow uses it automatically when present.
 
+### Homebrew tap trust
+
+Homebrew 4.1+ treats third-party taps as untrusted by default and may refuse to install from them until the user explicitly trusts the tap or the specific formula. This is a Homebrew client-side security feature; the formula itself does not need to do anything special.
+
+Users can trust the formula before installing:
+
+```bash
+brew trust --formula patriciomg/cleanup-tool/cleanup-tool
+brew install patriciomg/cleanup-tool/cleanup-tool
+```
+
+Or trust the entire tap once:
+
+```bash
+brew trust patriciomg/cleanup-tool
+brew install patriciomg/cleanup-tool/cleanup-tool
+```
+
+For the latest install instructions, including how to handle tap-trust prompts, see the [README.md](../README.md#install-with-homebrew-recommended).
+
 ### Testing the formula bump locally
 
 You can dry-run the release tarball build and formula auto-bump without publishing anything:
