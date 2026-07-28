@@ -65,33 +65,25 @@ gpg --verify dist/cleanup-tool-<version>-darwin-universal.tar.gz.asc \
 
 ## Homebrew formula
 
-The repository includes a native Homebrew formula at [`Formula/cleanup-tool.rb`](../Formula/cleanup-tool.rb). The release workflow automatically updates the formula's `url`, `version`, and `sha256` after a release is published, so no manual editing is required for normal releases.
+The Homebrew formula lives in a dedicated tap repository at [`patriciomg/homebrew-cleanup-tool`](https://github.com/patriciomg/homebrew-cleanup-tool). The release workflow automatically updates the formula's `url` and `sha256` in that repository after a release is published, so no manual editing is required for normal releases.
 
-Users can install or update the tool via Homebrew. Because the formula lives in this repository rather than a separate `homebrew-cleanup-tool` repo, users must tap the repository explicitly first:
+Users can install or update the tool via Homebrew:
 
 ```bash
-brew tap patriciomg/cleanup-tool https://github.com/patriciomg/cleanup-tool.git
 brew install patriciomg/cleanup-tool/cleanup-tool
 ```
 
-> **Note:** If `main` is protected or the default `GITHUB_TOKEN` cannot push, the formula auto-bump step will fail. Add a repository secret named `TAP_GITHUB_TOKEN` (a Personal Access Token with `repo` scope). The release workflow uses it automatically when present.
+Homebrew 4.1+ may ask users to trust the tap first. For the latest install and trust instructions, see the [README.md](../README.md#install-with-homebrew-recommended).
+
+> **Note:** If `master` in the tap repository is protected or the default `GITHUB_TOKEN` cannot push, the formula auto-bump step will fail. Add a repository secret named `TAP_GITHUB_TOKEN` (a Personal Access Token with `repo` scope). The release workflow uses it automatically when present.
 
 ### Homebrew tap trust
 
 Homebrew 4.1+ treats third-party taps as untrusted by default and may refuse to install from them until the user explicitly trusts the tap or the specific formula. This is a Homebrew client-side security feature; the formula itself does not need to do anything special.
 
-Users can trust the formula before installing:
+Trust the tap before installing:
 
 ```bash
-brew tap patriciomg/cleanup-tool https://github.com/patriciomg/cleanup-tool.git
-brew trust --formula patriciomg/cleanup-tool/cleanup-tool
-brew install patriciomg/cleanup-tool/cleanup-tool
-```
-
-Or trust the entire tap once:
-
-```bash
-brew tap patriciomg/cleanup-tool https://github.com/patriciomg/cleanup-tool.git
 brew trust patriciomg/cleanup-tool
 brew install patriciomg/cleanup-tool/cleanup-tool
 ```

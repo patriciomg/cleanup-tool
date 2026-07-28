@@ -57,23 +57,15 @@ A fast, terminal-based disk cleanup tool tailored for macOS developers who work 
 
 ### Install with Homebrew (recommended)
 
-`cleanup-tool` is available through the `patriciomg/cleanup-tool` tap. Because the formula lives in the main repository rather than a separate `homebrew-cleanup-tool` repo, you must tap it explicitly. On Homebrew 4.1+ you may be asked to trust the tap or formula before installing from a third-party repository.
+`cleanup-tool` is available through the `patriciomg/cleanup-tool` tap. On Homebrew 4.1+ you may be asked to trust the tap or formula before installing from a third-party repository.
 
 ```bash
-# 1. Tap the repository explicitly
-brew tap patriciomg/cleanup-tool https://github.com/patriciomg/cleanup-tool.git
-
-# 2. Trust the formula (recommended)
-brew trust --formula patriciomg/cleanup-tool/cleanup-tool
-
-# 3. Install
 brew install patriciomg/cleanup-tool/cleanup-tool
 ```
 
-If you prefer, you can trust the entire tap once and then install:
+If Homebrew asks you to trust the tap first, run:
 
 ```bash
-brew tap patriciomg/cleanup-tool https://github.com/patriciomg/cleanup-tool.git
 brew trust patriciomg/cleanup-tool
 brew install patriciomg/cleanup-tool/cleanup-tool
 ```

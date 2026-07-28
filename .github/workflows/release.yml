@@ -127,16 +127,21 @@ jobs:
 
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git checkout main
-          git pull --rebase origin main
 
-          # Apply the bump on main after pulling, so the working tree is clean.
-          sed -i '' "s|url \"[^\"]*\"|url \"$url\"|" Formula/cleanup-tool.rb
-          sed -i '' "s/sha256 \"[^\"]*\"/sha256 \"$sha256\"/" Formula/cleanup-tool.rb
-          git add Formula/cleanup-tool.rb
+          # The formula now lives in a dedicated tap repository, which follows
+          # Homebrew naming conventions and allows `brew install` without an
+          # explicit tap URL.
+          tap_dir="/tmp/homebrew-cleanup-tool"
+          git clone "https://github.com/patriciomg/homebrew-cleanup-tool.git" "$tap_dir"
+          cd "$tap_dir"
+          git pull --rebase origin master
+
+          sed -i '' "s|url \"[^\"]*\"|url \"$url\"|" cleanup-tool.rb
+          sed -i '' "s/sha256 \"[^\"]*\"/sha256 \"$sha256\"/" cleanup-tool.rb
+          git add cleanup-tool.rb
           git commit -m "chore(formula): bump cleanup-tool to $tag" || exit 0
 
           # Use a PAT if available so the push can bypass branch protection.
           push_token="${{ secrets.TAP_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}"
-          git remote set-url origin "https://x-access-token:${push_token}@github.com/patriciomg/cleanup-tool.git"
-          git push
+          git remote set-url origin "https://x-access-token:${push_token}@github.com/patriciomg/homebrew-cleanup-tool.git"
+          git push origin master
