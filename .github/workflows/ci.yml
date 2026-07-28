@@ -72,5 +72,5 @@ jobs:
         run: |
           mkdir -p /tmp/release-smoke
           tar -xzf dist/cleanup-tool-*-darwin-universal.tar.gz -C /tmp/release-smoke
-          find /tmp/release-smoke -name "cleanup-tool" -type f -executable
+          find /tmp/release-smoke -name "cleanup-tool" -type f -exec test -x {} \; -print
           cd dist && shasum -a 256 -c checksums.txt
