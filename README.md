@@ -3,6 +3,8 @@
 A fast, terminal-based disk cleanup tool tailored for macOS developers who work with Docker, LLMs, and build artifacts.
 
 > **Default view:** `cleanup-tool` opens in the **dua-style** interactive browser. Use `-tui-style terminal` to switch to the classic tree-style browser.
+>
+> `./cleanup-tool -help` shows `-tui-style` default: `"dua"`.
 
 ## Features
 
