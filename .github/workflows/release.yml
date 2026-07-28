@@ -1,0 +1,95 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build and publish release
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Run tests and vet
+        run: |
+          make vet
+          make test
+
+      - name: Build release artifacts
+        run: make release
+
+      - name: Verify release version matches tag
+        run: |
+          tag="${{ github.ref_name }}"
+          version="$(./dist/cleanup-tool-darwin-universal -version)"
+          echo "Binary version: $version"
+          echo "Expected: cleanup-tool $tag"
+          [ "$version" = "cleanup-tool $tag" ] || {
+            echo "ERROR: binary version does not match the pushed tag"
+            exit 1
+          }
+
+      - name: Verify release artifacts
+        run: |
+          test -f "dist/cleanup-tool-darwin-universal"
+          test -f "dist/checksums.txt"
+          test -f "dist/cleanup-tool"-*-darwin-universal.tar.gz
+          cat dist/checksums.txt
+
+      - name: Verify tarball contents and checksum
+        run: |
+          mkdir -p /tmp/release-smoke
+          tar -xzf dist/cleanup-tool-*-darwin-universal.tar.gz -C /tmp/release-smoke
+          find /tmp/release-smoke -name "cleanup-tool" -type f -executable
+          cd dist && shasum -a 256 -c checksums.txt
+
+      - name: Import GPG key and sign artifacts
+        env:
+          GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
+          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+          GPG_KEY_ID: ${{ secrets.GPG_KEY_ID }}
+        run: |
+          if [ -z "$GPG_PRIVATE_KEY" ]; then
+            echo "No GPG_PRIVATE_KEY secret found; skipping artifact signatures."
+            exit 0
+          fi
+          mkdir -p ~/.gnupg
+          echo "allow-loopback-pinentry" >> ~/.gnupg/gpg-agent.conf
+          gpgconf --kill gpg-agent || true
+          echo "$GPG_PRIVATE_KEY" | gpg --batch --yes --import
+          make release-sign
+
+      - name: Verify signatures
+        run: |
+          if [ ! -f dist/checksums.txt.asc ]; then
+            echo "No signatures to verify."
+            exit 0
+          fi
+          gpg --verify dist/checksums.txt.asc dist/checksums.txt
+
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          files=(dist/*.tar.gz dist/checksums.txt)
+          if ls dist/*.asc >/dev/null 2>&1; then
+            files+=(dist/*.asc)
+          fi
+          gh release create "${{ github.ref_name }}" \
+            --title "Release ${{ github.ref_name }}" \
+            --generate-notes \
+            "${files[@]}"

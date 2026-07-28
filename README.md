@@ -1,10 +1,40 @@
 # cleanup-tool
 
+[![CI](https://github.com/patriciomg/cleanup-tool/actions/workflows/ci.yml/badge.svg)](https://github.com/patriciomg/cleanup-tool/actions/workflows/ci.yml)
+[![Go Version](https://img.shields.io/github/go-mod/go-version/patriciomg/cleanup-tool)](https://github.com/patriciomg/cleanup-tool/blob/main/go.mod)
+[![GitHub release](https://img.shields.io/github/v/release/patriciomg/cleanup-tool?logo=github)](https://github.com/patriciomg/cleanup-tool/releases/latest)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
 A fast, terminal-based disk cleanup tool tailored for macOS developers who work with Docker, LLMs, and build artifacts. It opens into a flat, size-sorted **dua-style** interactive file browser by default; switch to the classic terminal-style tree view with `-tui-style terminal`.
 
 > **Default view:** `cleanup-tool` opens in the **dua-style** interactive browser. Use `-tui-style terminal` to switch to the classic tree-style browser.
 >
 > `./cleanup-tool -help` shows `-tui-style` default: `"dua"`.
+
+## Platform support
+
+`cleanup-tool` is developed and tested on **macOS**. The CI pipeline builds a macOS universal binary. Linux builds may work but are not officially supported; Windows is not supported.
+
+## Table of Contents
+
+- [Features](#features)
+- [Install](#install)
+- [Development](#development)
+- [Usage](#usage)
+- [CLI flags](#cli-flags)
+- [Exporting results](#exporting-results)
+- [Saved rules](#saved-rules)
+- [Scheduling rules with launchd](#scheduling-rules-with-launchd)
+- [Configuration file](#configuration-file)
+- [Key bindings](#key-bindings)
+- [Demo](#demo)
+- [Recording a demo](#recording-a-demo)
+- [Tips & Tricks](#tips--tricks)
+- [Troubleshooting](#troubleshooting)
+- [Releasing](#releasing)
+- [Roadmap](#roadmap)
+- [Contributing](#contributing)
+- [License](#license)
 
 ## Features
 
@@ -20,11 +50,32 @@ A fast, terminal-based disk cleanup tool tailored for macOS developers who work 
 - **Mouse and keyboard support** in the analyzer summary for filtering by category
 - **Benchmark mode** to measure scan performance (`-benchmark`)
 - **Saved rules** for reusable cleanup presets with non-interactive execution (`rules` subcommand)
-- **CI/CD and release tooling**: smoke-tested universal macOS binaries, tarball packaging, SHA-256 checksums, and GPG-signed releases via GitHub Actions
+- **LLM registry cleanup**: inspect and delete models from Ollama, Hugging Face cache, and LM Studio via the TUI (`M` key) or CLI (`models list` / `models delete`)
+- **CI/CD and release tooling**: smoke-tested universal macOS binaries, tarball packaging, SHA-256 checksums, and GPG-signed release artifacts via GitHub Actions
 
 ## Install
 
+### Download a release (recommended)
+
+Grab the latest macOS universal tarball from the [Releases page](https://github.com/patriciomg/cleanup-tool/releases/latest), then extract and install the binary:
+
 ```bash
+# Example: download and extract the latest release tarball
+curl -L -o cleanup-tool.tar.gz "https://github.com/patriciomg/cleanup-tool/releases/latest/download/cleanup-tool-darwin-universal.tar.gz"
+tar -xzf cleanup-tool.tar.gz
+mv cleanup-tool /usr/local/bin/
+```
+
+### Install with Go
+
+```bash
+go install github.com/patriciomg/cleanup-tool/cmd/cleanup-tool@latest
+```
+
+### Build from source
+
+```bash
+git clone https://github.com/patriciomg/cleanup-tool.git
 cd cleanup-tool
 go build ./cmd/cleanup-tool
 ```
@@ -35,7 +86,7 @@ Auto-rebuild the binary whenever a Go file changes with `reflex`:
 
 ```bash
 # Install reflex once
- go install github.com/cespare/reflex@latest
+go install github.com/cespare/reflex@latest
 
 # Make sure ~/go/bin is on PATH (add to your shell profile)
 export PATH="$PATH:$(go env GOPATH)/bin"
@@ -49,7 +100,6 @@ make watch-test
 
 `reflex` only rebuilds; run the resulting `./cleanup-tool` binary manually in another terminal so the interactive TUI is not interrupted by file watchers.
 
-
 ## Usage
 
 ```bash
@@ -57,7 +107,7 @@ make watch-test
 ./cleanup-tool
 
 # Scan specific paths
-./cleanup-tool -paths ~/kk,~/personal
+./cleanup-tool -paths ~/Downloads,~/Documents
 
 # Ignore hidden files
 ./cleanup-tool -ignore-hidden
@@ -84,7 +134,7 @@ make watch-test
 
 | Flag | Description | Default |
 |------|-------------|---------|
-| `-paths` | Comma-separated paths to scan (e.g. `~/kk,~/personal`) | `~` |
+| `-paths` | Comma-separated paths to scan (e.g. `~/Downloads,~/Documents`) | `~` |
 | `-ignore-hidden` | Skip hidden files and directories | `false` |
 | `-external` | Directory on an external drive to use for the move action | `""` |
 | `-dup-mode` | Duplicate-detection hash mode: `first10mb`, `sample`, `full`, `smart` | `smart` |
@@ -353,17 +403,19 @@ item. Select the terminal view with `-tui-style terminal`.
 | y | Yes |
 | n | No |
 
-## Screenshots
+## Demo
 
 The screenshots below are representative ASCII mockups of the current TUI. The
 default interactive view is the **dua-style browser**; the terminal-style tree
 browser is available with `-tui-style terminal`.
 
+> Want to see the real thing? Record a session with [asciinema](#recording-a-demo) or open an issue if you'd like an official GIF.
+
 ### Scanning progress
 
 ```
 Cleanup Tool — scanning...
-  Scanning... /Users/pato/personal/projects/big-repo
+  Scanning... /Users/dev/projects/big-repo
   12,405 files, 1,034 dirs
 ```
 
@@ -373,7 +425,7 @@ The default interactive view shows a flat, size-sorted list with a percentage
 and a small bar for each item.
 
 ```
-Cleanup Tool — /Users/pato
+Cleanup Tool — /Users/dev
   total: 312.4 GB  marked: 2
 
    Size      %   Name
@@ -381,8 +433,8 @@ Cleanup Tool — /Users/pato
  24.7 GB    8% █████             raw-images.tar
  12.3 GB    4% ██                  release
   4.1 GB    1% █                   projects
-  2.8 GB   <1% ▏                   kk
-  1.2 GB   <1% ▏                   personal
+  2.8 GB   <1% ▏                   docs
+  1.2 GB   <1% ▏                   notes
 
 [j/k/down/up] navigate  [enter/l] descend  [h/u/esc] parent
 [d] mark  [x] trash marked  [m] move  [r] restore
@@ -404,8 +456,8 @@ Cleanup Tool
 [ ]   24.7 GB  2024-11-08   docker          raw-images.tar
 [ ]   12.3 GB  2025-01-19   build-artifact    release
 ▼[ ]    4.1 GB  2024-09-30   Directory       projects
-    [ ]  2.8 GB  2024-09-30   Directory     kk
-    [ ]  1.2 GB  2024-09-30   Directory     personal
+    [ ]  2.8 GB  2024-09-30   Directory     docs
+    [ ]  1.2 GB  2024-09-30   Directory     notes
 
 [j/k/down/up] navigate  [l/enter/right] expand  [h/esc/left] collapse
 [c] clear  [d] trash  [m] move  [u] restore  [a] analyze dir
@@ -454,10 +506,10 @@ You can capture a real terminal session with [asciinema](https://asciinema.org/)
 
 ```bash
 # Record the default dua-style view
-asciinema rec cleanup-tool-demo.cast --command "./cleanup-tool -paths ~/kk,~/personal"
+asciinema rec cleanup-tool-demo.cast --command "./cleanup-tool -paths ~/Downloads,~/Documents"
 
 # Record the terminal-style tree view instead
-asciinema rec cleanup-tool-terminal-demo.cast --command "./cleanup-tool -tui-style terminal -paths ~/kk,~/personal"
+asciinema rec cleanup-tool-terminal-demo.cast --command "./cleanup-tool -tui-style terminal -paths ~/Downloads,~/Documents"
 
 # Play locally
 asciinema play cleanup-tool-demo.cast
@@ -509,7 +561,7 @@ Set an external drive with `-external` and press `m` to move selected items ther
 If you change your mind, press `u` to restore the last moved or trashed item.
 
 ```bash
-./cleanup-tool -external /Volumes/External/cleanup-backups -paths ~/kk
+./cleanup-tool -external /Volumes/External/cleanup-backups -paths ~/Downloads
 ```
 
 ### Benchmark scan speed
@@ -517,7 +569,7 @@ If you change your mind, press `u` to restore the last moved or trashed item.
 Run a non-interactive scan before and after a cleanup session to see the speed and total size:
 
 ```bash
-./cleanup-tool -benchmark -paths ~/personal
+./cleanup-tool -benchmark -paths ~/Documents
 ```
 
 ### Keep scans fast
@@ -566,79 +618,9 @@ Add folders you never want to scan (e.g. `~/Library/Caches`, `node_modules`) to 
 
 ## Releasing
 
-Releases are built and signed automatically from Git tags via [`.github/workflows/release.yml`](../.github/workflows/release.yml). The pipeline builds a macOS universal binary, packages it as a tarball, generates a checksum file, signs everything with GPG, and attaches the assets to the GitHub Release.
+The [`release.yml`](.github/workflows/release.yml) workflow automatically builds, signs, and publishes a GitHub Release when a `v*` tag is pushed. The [`ci.yml`](.github/workflows/ci.yml) workflow runs tests and a release smoke test on every push to `main` and on pull requests.
 
-> **Note:** `make release` must be run on macOS because the universal binary is created with `lipo`.
-
-### Local release artifacts
-
-```bash
-# Build the universal binary, tarball, and checksums locally
-cd cleanup-tool
-make release
-
-# Sign the artifacts with GPG (requires a configured GPG key).
-# Optional: use GPG_KEY_ID to select a specific key.
-make release-sign
-# or: GPG_KEY_ID=YOUR_KEY_ID make release-sign
-
-# Verify a signature
-gpg --verify dist/checksums.txt.asc dist/checksums.txt
-gpg --verify dist/cleanup-tool-<version>-darwin-universal.tar.gz.asc \
-            dist/cleanup-tool-<version>-darwin-universal.tar.gz
-```
-
-### Publishing a release from GitHub Actions
-
-1. **Generate a GPG key** (if you do not already have one):
-
-   ```bash
-   gpg --full-generate-key
-   # Choose a secure key type, e.g., ED25519 or RSA/RSA 4096 bits.
-   ```
-
-2. **Export the private key** for GitHub Actions:
-
-   ```bash
-   gpg --list-secret-keys --keyid-format LONG
-   # Use the long key ID from the output above
-   gpg --armor --export-secret-keys <KEY_ID> > cleanup-tool-release.asc
-   ```
-
-3. **Add the secrets to your repository** on GitHub under **Settings → Secrets and variables → Actions**:
-
-   - `GPG_PRIVATE_KEY`: the contents of `cleanup-tool-release.asc`
-   - `GPG_PASSPHRASE`: the passphrase for that key. **Only create this secret if your key is protected by a passphrase**; if the key has no passphrase, omit this secret entirely. If `GPG_PRIVATE_KEY` is not set, the workflow will still publish a release, but the assets will not be signed.
-
-4. **Push a version tag** (`v*`):
-
-   ```bash
-   git tag -a v1.0.0 -m "Release v1.0.0"
-   git push origin v1.0.0
-   ```
-
-5. The `Release` workflow will:
-
-   - Run tests and `go vet` on `macos-latest`
-   - Build `cleanup-tool-darwin-universal` and the release tarball
-   - Generate `checksums.txt`
-   - Import the GPG key and run `make release-sign`
-   - Verify the signatures
-   - Create the GitHub Release and upload the tarball, checksum file, and `.asc` signatures
-
-### Verifying a published release
-
-```bash
-# Download the public key from the release author and import it
-gpg --import <author-public-key.asc>
-
-# Verify the checksum file signature
-gpg --verify checksums.txt.asc checksums.txt
-
-# Verify the tarball signature
-gpg --verify cleanup-tool-<version>-darwin-universal.tar.gz.asc \
-            cleanup-tool-<version>-darwin-universal.tar.gz
-```
+For the full release checklist, including GPG setup, see [`docs/releasing.md`](docs/releasing.md).
 
 ## Roadmap
 
@@ -665,3 +647,11 @@ gpg --verify cleanup-tool-<version>-darwin-universal.tar.gz.asc \
 
 - [ ] Remove deprecated `-json-out` flag (use `-out` instead) — tracked in `.github/ISSUE_TEMPLATE/remove-deprecated-json-out-flag.md`
 - [ ] Native Homebrew formula
+
+## Contributing
+
+Bug reports, feature requests, and pull requests are welcome. Please open an issue before major changes so we can agree on direction.
+
+## License
+
+[MIT](LICENSE) © Pato

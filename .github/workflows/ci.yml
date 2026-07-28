@@ -9,10 +9,6 @@ on:
 permissions:
   contents: read
 
-defaults:
-  run:
-    working-directory: cleanup-tool
-
 jobs:
   test-and-vet:
     runs-on: ${{ matrix.os }}
@@ -28,7 +24,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version-file: cleanup-tool/go.mod
+          go-version-file: go.mod
 
       - name: Run go vet
         run: make vet
@@ -51,7 +47,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version-file: cleanup-tool/go.mod
+          go-version-file: go.mod
 
       - name: Build release
         run: make release
