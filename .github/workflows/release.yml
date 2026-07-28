@@ -110,7 +110,7 @@ jobs:
 
       - name: Update Homebrew formula
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAP_GITHUB_TOKEN: ${{ secrets.TAP_GITHUB_TOKEN }}
         run: |
           tag="${{ github.ref_name }}"
 
@@ -118,6 +118,15 @@ jobs:
           if [[ "$tag" =~ -(test|rc) ]]; then
             echo "Skipping Homebrew formula update for pre-release $tag"
             exit 0
+          fi
+
+          # Pushing to another repository requires a PAT; the default
+          # GITHUB_TOKEN is scoped to the current repository only.
+          if [ -z "$TAP_GITHUB_TOKEN" ]; then
+            echo "ERROR: TAP_GITHUB_TOKEN secret is not set."
+            echo "Create a Personal Access Token with 'repo' scope for patriciomg/homebrew-cleanup-tool"
+            echo "and add it as the TAP_GITHUB_TOKEN secret in this repository."
+            exit 1
           fi
 
           # Compute the new tarball URL and checksum while on the tag.
@@ -141,7 +150,5 @@ jobs:
           git add cleanup-tool.rb
           git commit -m "chore(formula): bump cleanup-tool to $tag" || exit 0
 
-          # Use a PAT if available so the push can bypass branch protection.
-          push_token="${{ secrets.TAP_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}"
-          git remote set-url origin "https://x-access-token:${push_token}@github.com/patriciomg/homebrew-cleanup-tool.git"
+          git remote set-url origin "https://x-access-token:${TAP_GITHUB_TOKEN}@github.com/patriciomg/homebrew-cleanup-tool.git"
           git push origin master

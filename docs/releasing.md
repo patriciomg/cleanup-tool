@@ -75,7 +75,7 @@ brew install patriciomg/cleanup-tool/cleanup-tool
 
 Homebrew 4.1+ may ask users to trust the tap first. For the latest install and trust instructions, see the [README.md](../README.md#install-with-homebrew-recommended).
 
-> **Note:** If `master` in the tap repository is protected or the default `GITHUB_TOKEN` cannot push, the formula auto-bump step will fail. Add a repository secret named `TAP_GITHUB_TOKEN` (a Personal Access Token with `repo` scope). The release workflow uses it automatically when present.
+> **Required:** The auto-bump step pushes to the `patriciomg/homebrew-cleanup-tool` repository. The default `GITHUB_TOKEN` is scoped only to the current repository and will be rejected with a 403 error. You must add a repository secret named `TAP_GITHUB_TOKEN` containing a Personal Access Token with `repo` scope for the tap repository. The workflow fails fast with a clear error if the secret is missing.
 
 ### Homebrew tap trust
 
