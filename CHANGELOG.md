@@ -5,7 +5,7 @@ All notable changes to `cleanup-tool` will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.3.0] - 2026-07-28
 
 ### Added
 
@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Docker disk usage/prune support in dua mode: press `D` to view images, containers, volumes, and build cache, and `p` to prune the selected resource.
 - External move and restore support in dua mode: press `m` to move marked/selected items to the `-external` drive, and `r` to restore a selected item from Trash.
 - Full dependency wiring for dua mode: `-external`, `-dup-mode`, and Docker are now passed through to the dua TUI.
+- **LLM registry cleanup** — full support for inspecting and deleting models from Ollama, Hugging Face cache, and LM Studio, accessible via the `M` key in both TUI styles and via the `models list`/`models delete` CLI commands.
 - `-out` flag as a format-agnostic alias for writing scan exports (JSON, CSV, TSV, YAML) to a file.
 - `-stdout` flag as a clearer alias for `-json` that exports scan results to stdout with any `-format`.
 - Format auto-detection from the `-out` file extension: `.json`, `.csv`, `.tsv`, `.yaml`/`.yml`.
@@ -33,6 +34,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added a "default view" callout near the top and a one-line CLI help note showing the default `-tui-style` value.
 - Updated the project tagline to describe the dua-style default and the `terminal`-style alternative.
 - Added a "Use the default dua-style shortcuts" tip covering navigation, marking, trash, move, analyzer, and Docker.
+- Cleaned up Roadmap: moved LLM registry cleanup and export to Done, added Dua-style browser Done item, removed duplicates.
 
 ### Deprecated
 
@@ -95,6 +97,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Bubble Tea-based TUI with size-sorted file navigation, directory drill-down, marking, trash, move to external drive, and restore.
 - Configurable ignore paths via `~/.config/cleanup-tool/config.json`.
 
-[Unreleased]: https://github.com/patriciomg/cleanup-tool/compare/v0.2.0...main
+[Unreleased]: https://github.com/patriciomg/cleanup-tool/compare/v0.3.0...main
+[0.3.0]: https://github.com/patriciomg/cleanup-tool/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/patriciomg/cleanup-tool/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/patriciomg/cleanup-tool/releases/tag/v0.1.0
