@@ -32,16 +32,26 @@ jobs:
       - name: Build release artifacts
         run: make release
 
-      - name: Verify release version matches tag
+      - name: Verify release version
         run: |
           tag="${{ github.ref_name }}"
           version="$(./dist/cleanup-tool-darwin-universal -version)"
           echo "Binary version: $version"
-          echo "Expected: cleanup-tool $tag"
-          [ "$version" = "cleanup-tool $tag" ] || {
-            echo "ERROR: binary version does not match the pushed tag"
+          echo "Tag: $tag"
+
+          # Always require a valid semantic version format
+          echo "$version" | grep -qE '^cleanup-tool v[0-9]+\.[0-9]+\.[0-9]+' || {
+            echo "ERROR: binary version does not match expected format"
             exit 1
           }
+
+          # For release tags (no -test/-rc suffix), require an exact match
+          if [[ ! "$tag" =~ -(test|rc) ]]; then
+            [ "$version" = "cleanup-tool $tag" ] || {
+              echo "ERROR: binary version does not match the pushed tag"
+              exit 1
+            }
+          fi
 
       - name: Verify release artifacts
         run: |
@@ -89,7 +99,11 @@ jobs:
           if ls dist/*.asc >/dev/null 2>&1; then
             files+=(dist/*.asc)
           fi
+          prerelease_flag=""
+          [[ "${{ github.ref_name }}" =~ -(test|rc) ]] && prerelease_flag="--prerelease"
+
           gh release create "${{ github.ref_name }}" \
             --title "Release ${{ github.ref_name }}" \
             --generate-notes \
+            ${prerelease_flag} \
             "${files[@]}"
