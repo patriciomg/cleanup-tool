@@ -57,8 +57,27 @@ A fast, terminal-based disk cleanup tool tailored for macOS developers who work 
 
 ### Install with Homebrew (recommended)
 
+`cleanup-tool` is available through the `patriciomg/cleanup-tool` tap. On Homebrew 4.1+ you may be asked to trust the tap or formula before installing from a third-party repository.
+
 ```bash
+# 1. Trust the formula (recommended)
+brew trust --formula patriciomg/cleanup-tool/cleanup-tool
+
+# 2. Install
 brew install patriciomg/cleanup-tool/cleanup-tool
+```
+
+If you prefer, you can trust the entire tap once and then install:
+
+```bash
+brew trust patriciomg/cleanup-tool
+brew install patriciomg/cleanup-tool/cleanup-tool
+```
+
+Upgrade later with:
+
+```bash
+brew update && brew upgrade cleanup-tool
 ```
 
 ### Download a release
@@ -653,7 +672,7 @@ For the full release checklist, including GPG setup, see [`docs/releasing.md`](d
 ### Coming soon
 
 - [x] Remove deprecated `-json-out` flag (use `-out` instead) — tracked in `.github/ISSUE_TEMPLATE/remove-deprecated-json-out-flag.md`
-- [ ] Native Homebrew formula
+- [x] Native Homebrew formula
 
 ## Contributing
 
