@@ -351,7 +351,9 @@ item. Select the terminal view with `-tui-style terminal`.
 
 ## Screenshots
 
-The screenshots below are representative ASCII mockups of the current TUI.
+The screenshots below are representative ASCII mockups of the current TUI. The
+default interactive view is the **dua-style browser**; the terminal-style tree
+browser is available with `-tui-style terminal`.
 
 ### Scanning progress
 
@@ -361,9 +363,35 @@ Cleanup Tool — scanning...
   12,405 files, 1,034 dirs
 ```
 
-### File browser
+### Dua-style browser (default)
 
-```Cleanup Tool
+The default interactive view shows a flat, size-sorted list with a percentage
+and a small bar for each item.
+
+```
+Cleanup Tool — /Users/pato
+  total: 312.4 GB  marked: 2
+
+   Size      %   Name
+ 89.1 GB   28% ████████████████  Llama-3-70B
+ 24.7 GB    8% █████             raw-images.tar
+ 12.3 GB    4% ██                  release
+  4.1 GB    1% █                   projects
+  2.8 GB   <1% ▏                   kk
+  1.2 GB   <1% ▏                   personal
+
+[j/k/down/up] navigate  [enter/l] descend  [h/u/esc] parent
+[d] mark  [x] trash marked  [m] move  [r] restore
+[a] analyze  [A] analyze selection  [D] Docker  [q] quit
+```
+
+### Terminal-style browser
+
+The classic terminal-style tree browser. Select it with `-tui-style terminal`
+(`tree` is still accepted as an alias).
+
+```
+Cleanup Tool
   total: 312.4 GB  marked: 2
   scanned 1,245,032 files, 98,422 dirs in 12.34s (peak 102,391 files/sec, 8,112 dirs/sec)
 
