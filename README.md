@@ -4,6 +4,7 @@
 [![Go Version](https://img.shields.io/github/go-mod/go-version/patriciomg/cleanup-tool)](https://github.com/patriciomg/cleanup-tool/blob/main/go.mod)
 [![GitHub release](https://img.shields.io/github/v/release/patriciomg/cleanup-tool?logo=github)](https://github.com/patriciomg/cleanup-tool/releases/latest)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Homebrew Tap](https://img.shields.io/badge/homebrew-patriciomg%2Fcleanup--tool-2e4053?logo=homebrew)](https://github.com/patriciomg/homebrew-cleanup-tool)
 
 A fast, terminal-based disk cleanup tool tailored for macOS developers who work with Docker, LLMs, and build artifacts. It opens into a flat, size-sorted **dua-style** interactive file browser by default; switch to the classic terminal-style tree view with `-tui-style terminal`.
 
@@ -57,7 +58,7 @@ A fast, terminal-based disk cleanup tool tailored for macOS developers who work 
 
 ### Install with Homebrew (recommended)
 
-`cleanup-tool` is available through the `patriciomg/cleanup-tool` tap. On Homebrew 4.1+ you may be asked to trust the tap or formula before installing from a third-party repository.
+`cleanup-tool` is available through the [`patriciomg/cleanup-tool`](https://github.com/patriciomg/homebrew-cleanup-tool) tap. On Homebrew 4.1+ you may be asked to trust the tap or formula before installing from a third-party repository.
 
 ```bash
 brew install patriciomg/cleanup-tool/cleanup-tool
