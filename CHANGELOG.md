@@ -5,7 +5,20 @@ All notable changes to `cleanup-tool` will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.4.0] - Unreleased
+## [0.4.2] - 2026-07-28
+
+### Fixed
+
+- Verified the release workflow now correctly auto-bumps the Homebrew formula after the GitHub Release is published.
+
+## [0.4.1] - 2026-07-28
+
+### Fixed
+
+- Release workflow: apply the Homebrew formula `sed` update after checking out and rebasing `main`, preventing `git pull --rebase` from failing on unstaged changes.
+- Formula updated to v0.4.1 release asset and switched from deprecated `depends_on :macos` to `depends_on macos: :big_sur`.
+
+## [0.4.0] - 2026-07-28
 
 ### Added
 
@@ -116,7 +129,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Bubble Tea-based TUI with size-sorted file navigation, directory drill-down, marking, trash, move to external drive, and restore.
 - Configurable ignore paths via `~/.config/cleanup-tool/config.json`.
 
-[Unreleased]: https://github.com/patriciomg/cleanup-tool/compare/v0.4.0...main
+[Unreleased]: https://github.com/patriciomg/cleanup-tool/compare/v0.4.2...main
+[0.4.2]: https://github.com/patriciomg/cleanup-tool/compare/v0.4.1...v0.4.2
+[0.4.1]: https://github.com/patriciomg/cleanup-tool/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/patriciomg/cleanup-tool/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/patriciomg/cleanup-tool/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/patriciomg/cleanup-tool/compare/v0.1.0...v0.2.0
