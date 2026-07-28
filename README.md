@@ -469,6 +469,18 @@ For a GIF, convert the cast with [agg](https://github.com/asciinema/agg) or reco
 2. Select **Images** or **Build Cache** and press `p` to prune.
 3. Confirm with `y`.
 
+### Use the default dua-style shortcuts
+
+`cleanup-tool` now starts in the dua-style view by default. A few shortcuts make it fast once the scan finishes:
+
+- `j` / `k` (or ↑ / ↓) move up and down the size-sorted list.
+- `Enter` or `l` descend into a directory; `h`, `u`, or `Esc` go back up.
+- `d` marks an item; `x` trashes all marked items; `m` moves them to the `-external` drive.
+- `a` analyzes the current directory; `A` analyzes the selected/marked items.
+- `D` opens Docker disk usage.
+
+Run `./cleanup-tool -tui-style terminal` if you prefer the classic tree browser.
+
 ### Find duplicates fast
 
 Use the sample hash mode on large directories like **Downloads** or **Photos**, then run the analyzer with `a` or `A` to see duplicates faster:
@@ -479,8 +491,8 @@ Use the sample hash mode on large directories like **Downloads** or **Photos**, 
 
 ### Analyze before deleting
 
-In the file browser, navigate to a directory and press `a` to run the deletability analyzer.
-Filter by category with `Tab` / arrow keys, mark items with `Space`, and press `d` to trash the marked ones.
+In either browser, navigate to a directory and press `a` to run the deletability analyzer.
+Filter by category with `Tab` / arrow keys, mark hints with `Space`, and press `d` to trash the marked ones.
 
 ### Move before you trash
 
