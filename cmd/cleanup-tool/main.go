@@ -31,6 +31,9 @@ func main() {
 		case "models":
 			handleModelsCmd(os.Args[2:])
 			return
+		case "deps":
+			handleDepsCmd(os.Args[2:])
+			return
 		}
 	}
 

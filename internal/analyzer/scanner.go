@@ -9,8 +9,6 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
-	"syscall"
-	"time"
 
 	"github.com/patriciomg/cleanup-tool/internal/categories"
 )
@@ -170,11 +168,7 @@ func entryFromInfo(path string, info fs.FileInfo) *Entry {
 		Scanned: true,
 	}
 
-	if stat, ok := info.Sys().(*syscall.Stat_t); ok {
-		entry.AccessTime = time.Unix(stat.Atimespec.Sec, int64(stat.Atimespec.Nsec))
-	} else {
-		entry.AccessTime = info.ModTime()
-	}
+	entry.AccessTime = accessTime(info)
 
 	return entry
 }
