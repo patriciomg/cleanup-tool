@@ -656,11 +656,12 @@ gpg --verify cleanup-tool-<version>-darwin-universal.tar.gz.asc \
 - [x] Benchmark mode (`-benchmark`)
 - [x] Saved rules with non-interactive execution
 - [x] launchd automation for saved rules
+- [x] Dua-style interactive browser (default) with flat size-sorted list, percentages, and bars
+- [x] LLM registry inspection and model deletion (Ollama, Hugging Face cache, LM Studio) via TUI (`M` key) and CLI (`models list`, `models delete`)
+- [x] Export scan results to JSON, CSV, TSV, and YAML with auto-detected formats (`-out`, `-stdout`, `-format`, `-csv-columns`)
 - [x] CI/CD smoke tests and GPG-signed macOS universal releases
 
 ### Coming soon
 
 - [ ] Remove deprecated `-json-out` flag (use `-out` instead) — tracked in `.github/ISSUE_TEMPLATE/remove-deprecated-json-out-flag.md`
-- [ ] LLM registry cleanup (Ollama, Hugging Face cache, LM Studio)
-- [ ] Export scan results to JSON
 - [ ] Native Homebrew formula
