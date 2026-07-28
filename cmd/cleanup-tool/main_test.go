@@ -343,6 +343,29 @@ func TestResolveTUIStyle(t *testing.T) {
 	}
 }
 
+func TestVersionFlag(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	root, err := findModuleRoot()
+	if err != nil {
+		t.Fatalf("finding module root: %v", err)
+	}
+	toolDir := filepath.Join(root, "cmd", "cleanup-tool")
+
+	cmd := exec.Command("go", "run", ".", "-version")
+	cmd.Dir = toolDir
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("-version command failed: %v\n%s", err, out)
+	}
+	want := "v0.3.0"
+	if !strings.Contains(string(out), want) {
+		t.Fatalf("expected -version to report %q, got:\n%s", want, out)
+	}
+}
+
 func TestTUIStyleSmoke(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping integration test in short mode")
