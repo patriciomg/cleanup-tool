@@ -49,7 +49,6 @@ func main() {
 		showVersion      bool
 		benchmark        bool
 		out              string
-		jsonOut          string
 		json             bool
 		stdout           bool
 		format           string
@@ -67,7 +66,6 @@ func main() {
 	flag.BoolVar(&showVersion, "version", false, "Show version")
 	flag.BoolVar(&benchmark, "benchmark", false, "Benchmark scan and print throughput to stdout")
 	flag.StringVar(&out, "out", "", "Export scan results to the specified file (implies non-interactive)")
-	flag.StringVar(&jsonOut, "json-out", "", "Deprecated: use -out instead")
 	flag.BoolVar(&json, "json", false, "Export scan results to stdout (non-interactive)")
 	flag.BoolVar(&stdout, "stdout", false, "Export scan results to stdout (works with any -format; alias for -json)")
 	flag.StringVar(&format, "format", "json", "Export format: json, csv, tsv, yaml (default: json; auto-detected from -out extension when not specified)")
@@ -131,10 +129,6 @@ func main() {
 	}
 
 	format = strings.ToLower(format)
-
-	maybeWarnDeprecatedJSONOut(os.Stderr, jsonOut)
-
-	out = effectiveOutputFile(out, jsonOut)
 
 	// Auto-detect format from -out file extension unless the user explicitly
 	// provided -format. An unknown extension is an error to avoid silently
@@ -282,23 +276,6 @@ func runNonInteractive(paths []string, ignorePaths []string, ignoreHidden bool, 
 	if outFile != "" {
 		fmt.Printf("Exported scan results to %s\n", outFile)
 	}
-}
-
-// maybeWarnDeprecatedJSONOut writes a deprecation warning to w when jsonOut
-// is set.
-func maybeWarnDeprecatedJSONOut(w io.Writer, jsonOut string) {
-	if jsonOut != "" {
-		fmt.Fprintln(w, "warning: -json-out is deprecated; use -out instead")
-	}
-}
-
-// effectiveOutputFile returns the output file to use. If out is empty and
-// jsonOut is set, jsonOut is used as a legacy alias.
-func effectiveOutputFile(out, jsonOut string) string {
-	if out == "" && jsonOut != "" {
-		return jsonOut
-	}
-	return out
 }
 
 // formatFlagExplicitlySet returns true if the -format flag was provided on

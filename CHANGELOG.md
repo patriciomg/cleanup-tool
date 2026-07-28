@@ -5,6 +5,25 @@ All notable changes to `cleanup-tool` will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] - Unreleased
+
+### Added
+
+- **Homebrew formula** at `Formula/cleanup-tool.rb` for `brew install patriciomg/cleanup-tool/cleanup-tool`.
+- **Automatic Homebrew formula bump** in the release workflow: stable releases now update the formula's `url` and `sha256`, committing the change back to `main`.
+- **CI Homebrew formula audit** job (`.github/workflows/ci.yml`) that runs `brew audit --new cleanup-tool` on every PR.
+- **`scripts/dry-run-formula-bump.sh`** for locally testing the release tarball build and formula auto-bump without publishing.
+- **Dependency directory TUI integration** — press `P` in either TUI style to browse dependency directories (`node_modules`, `vendor`, `.venv`, etc.) and trash or move them.
+- Expanded `deps` default targets to `.venv`, `venv`, `bower_components`, `Pods`, and `Carthage`.
+
+### Changed
+
+- Release workflow uses `TAP_GITHUB_TOKEN` (falling back to `GITHUB_TOKEN`) when pushing the formula bump so it can bypass branch protection.
+
+### Removed
+
+- **Breaking:** Removed the deprecated `-json-out` flag and its `effectiveOutputFile` / `maybeWarnDeprecatedJSONOut` helpers. Use `-out` instead (e.g., `cleanup-tool -out /path/to/scan.json -paths /tmp`).
+
 ## [0.3.0] - 2026-07-28
 
 ### Added
@@ -97,7 +116,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Bubble Tea-based TUI with size-sorted file navigation, directory drill-down, marking, trash, move to external drive, and restore.
 - Configurable ignore paths via `~/.config/cleanup-tool/config.json`.
 
-[Unreleased]: https://github.com/patriciomg/cleanup-tool/compare/v0.3.0...main
+[Unreleased]: https://github.com/patriciomg/cleanup-tool/compare/v0.4.0...main
+[0.4.0]: https://github.com/patriciomg/cleanup-tool/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/patriciomg/cleanup-tool/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/patriciomg/cleanup-tool/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/patriciomg/cleanup-tool/releases/tag/v0.1.0

@@ -19,6 +19,14 @@ func TestFinderFindsTargets(t *testing.T) {
 	b := filepath.Join(root, "project-a", "vendor")
 	mustWriteFile(t, filepath.Join(b, "go.mod"), "hello") // 5 bytes
 
+	// project-a/.venv with 7 bytes
+	c := filepath.Join(root, "project-a", ".venv")
+	mustWriteFile(t, filepath.Join(c, "lib", "x"), "abcdefg") // 7 bytes
+
+	// project-b/Pods with 4 bytes
+	d := filepath.Join(root, "project-b", "Pods")
+	mustWriteFile(t, filepath.Join(d, "SomePod", "file"), "1234") // 4 bytes
+
 	// Nested node_modules inside project-a/node_modules should roll into the
 	// outer one, not be reported separately.
 	mustWriteFile(t, filepath.Join(a, "a", "node_modules", "c", "x"), "yy") // 2 bytes
@@ -29,8 +37,8 @@ func TestFinderFindsTargets(t *testing.T) {
 		t.Fatalf("Find error: %v", err)
 	}
 
-	if len(results) != 2 {
-		t.Fatalf("expected 2 dependency dirs, got %d: %v", len(results), results)
+	if len(results) != 4 {
+		t.Fatalf("expected 4 dependency dirs, got %d: %v", len(results), results)
 	}
 
 	byPath := make(map[string]*DependencyDir)
@@ -55,6 +63,22 @@ func TestFinderFindsTargets(t *testing.T) {
 	}
 	if byPath[vendorPath].Size != 5 {
 		t.Fatalf("expected vendor size 5, got %d", byPath[vendorPath].Size)
+	}
+
+	venvPath := filepath.Join(root, "project-a", ".venv")
+	if _, ok := byPath[venvPath]; !ok {
+		t.Fatalf("missing .venv at %s", venvPath)
+	}
+	if byPath[venvPath].Size != 7 {
+		t.Fatalf("expected .venv size 7, got %d", byPath[venvPath].Size)
+	}
+
+	podsPath := filepath.Join(root, "project-b", "Pods")
+	if _, ok := byPath[podsPath]; !ok {
+		t.Fatalf("missing Pods at %s", podsPath)
+	}
+	if byPath[podsPath].Size != 4 {
+		t.Fatalf("expected Pods size 4, got %d", byPath[podsPath].Size)
 	}
 
 	// Ensure the nested node_modules was not reported separately.
@@ -98,6 +122,19 @@ func TestFinderRespectsIgnorePaths(t *testing.T) {
 	}
 	if results[0].Size != 3 {
 		t.Fatalf("expected size 3, got %d", results[0].Size)
+	}
+}
+
+func TestDefaultTargets(t *testing.T) {
+	want := []string{"node_modules", "vendor", ".venv", "venv", "bower_components", "Pods", "Carthage"}
+	got := DefaultTargets()
+	if len(got) != len(want) {
+		t.Fatalf("DefaultTargets length mismatch: got %d, want %d", len(got), len(want))
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("DefaultTargets()[%d] = %q, want %q", i, got[i], want[i])
+		}
 	}
 }
 

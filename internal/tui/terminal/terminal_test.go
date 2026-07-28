@@ -3,9 +3,11 @@ package terminal
 import (
 	"strings"
 	"testing"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/patriciomg/cleanup-tool/internal/analyzer"
+	"github.com/patriciomg/cleanup-tool/internal/deps"
 	"github.com/patriciomg/cleanup-tool/internal/tui/common"
 )
 
@@ -390,6 +392,55 @@ func TestFormatHelpBar(t *testing.T) {
 				t.Fatalf("expected %d lines, got %d: %q", tc.expect, len(lines), got)
 			}
 		})
+	}
+}
+
+func TestDepsView(t *testing.T) {
+	parent := entry("dir", "/dir", 10, true)
+	m := New([]*analyzer.Entry{parent}, "", false, nil, analyzer.DupHashSmart, 100)
+	m.view = viewDeps
+	m.depsList = []*deps.DependencyDir{
+		{Path: "/dir/node_modules", Type: "node_modules", Size: 100, AccessTime: time.Now(), ModTime: time.Now()},
+	}
+	v := m.View()
+	if !strings.Contains(v, "node_modules") {
+		t.Fatalf("expected deps view to show dependency directory, got:\n%s", v)
+	}
+}
+
+func TestHandleDepsKey(t *testing.T) {
+	parent := entry("dir", "/dir", 10, true)
+	m := New([]*analyzer.Entry{parent}, "", false, nil, analyzer.DupHashSmart, 100)
+	m.view = viewDeps
+	m.depsList = []*deps.DependencyDir{
+		{Path: "/dir/node_modules", Type: "node_modules", Size: 100, AccessTime: time.Now(), ModTime: time.Now()},
+		{Path: "/dir/vendor", Type: "vendor", Size: 200, AccessTime: time.Now(), ModTime: time.Now()},
+	}
+
+	// Navigate down.
+	m.handleDepsKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'j'}})
+	if m.depsSelected != 1 {
+		t.Fatalf("expected depsSelected 1 after j, got %d", m.depsSelected)
+	}
+
+	// Mark selected (space).
+	m.handleDepsKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{' '}})
+	if !m.depsMarked["/dir/vendor"] {
+		t.Fatal("expected /dir/vendor to be marked after space")
+	}
+}
+
+func TestFilterDepsListClampsSelection(t *testing.T) {
+	parent := entry("dir", "/dir", 10, true)
+	m := New([]*analyzer.Entry{parent}, "", false, nil, analyzer.DupHashSmart, 100)
+	m.depsList = []*deps.DependencyDir{
+		{Path: "/dir/node_modules", Type: "node_modules", Size: 100, AccessTime: time.Now(), ModTime: time.Now()},
+		{Path: "/dir/vendor", Type: "vendor", Size: 200, AccessTime: time.Now(), ModTime: time.Now()},
+	}
+	m.depsSelected = 1
+	m.filterDepsList(map[string]bool{"/dir/vendor": true})
+	if m.depsSelected != 0 {
+		t.Fatalf("expected depsSelected clamped to 0, got %d", m.depsSelected)
 	}
 }
 

@@ -40,7 +40,7 @@ type Finder struct {
 
 // DefaultTargets returns the built-in dependency directory names.
 func DefaultTargets() []string {
-	return []string{"node_modules", "vendor"}
+	return []string{"node_modules", "vendor", ".venv", "venv", "bower_components", "Pods", "Carthage"}
 }
 
 // NewFinder creates a new Finder.

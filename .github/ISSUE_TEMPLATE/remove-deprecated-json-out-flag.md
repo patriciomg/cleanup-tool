@@ -1,8 +1,8 @@
 ---
 name: Remove deprecated `-json-out` flag
 about: Track the removal of the deprecated `-json-out` CLI flag in a future release
-title: "[v0.3.0] Remove deprecated `-json-out` flag"
-labels: breaking-change, deprecation, v0.3.0
+title: "[v0.4.0] Remove deprecated `-json-out` flag"
+labels: breaking-change, deprecation, v0.4.0
 ---
 
 ## Summary
@@ -22,13 +22,13 @@ This issue tracks its complete removal in the next breaking/major release.
 
 ## Acceptance Criteria
 
-- [ ] Remove the `-json-out` flag definition from `cmd/cleanup-tool/main.go`.
-- [ ] Remove the `maybeWarnDeprecatedJSONOut` helper and any related warning logic.
-- [ ] Remove the legacy handling in `effectiveOutputFile` that maps `-json-out` to `-out`.
-- [ ] Remove or update tests that exercise `-json-out` (e.g., `TestCLIDeprecatedJSONOut`).
-- [ ] Update the CLI flags table in `README.md` to remove the `-json-out` row.
-- [ ] Add a prominent breaking-change note to `CHANGELOG.md` under the new version.
-- [ ] Update any other documentation that mentions `-json-out`.
+- [x] Remove the `-json-out` flag definition from `cmd/cleanup-tool/main.go`.
+- [x] Remove the `maybeWarnDeprecatedJSONOut` helper and any related warning logic.
+- [x] Remove the legacy handling in `effectiveOutputFile` that maps `-json-out` to `-out`.
+- [x] Remove or update tests that exercise `-json-out` (e.g., `TestCLIDeprecatedJSONOut`).
+- [x] Update the CLI flags table in `README.md` to remove the `-json-out` row.
+- [x] Add a prominent breaking-change note to `CHANGELOG.md` under the new version.
+- [x] Update any other documentation that mentions `-json-out`.
 
 ## Migration Path
 
@@ -52,7 +52,7 @@ cleanup-tool -out /path/to/scan.csv -format csv -paths /tmp
 
 ## Target Release
 
-v0.3.0 (or next appropriate major/breaking release).
+v0.4.0 (or next appropriate major/breaking release).
 
 ## Related
 

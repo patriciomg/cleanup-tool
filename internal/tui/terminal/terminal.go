@@ -14,6 +14,7 @@ import (
 
 	"github.com/patriciomg/cleanup-tool/internal/actions"
 	"github.com/patriciomg/cleanup-tool/internal/analyzer"
+	"github.com/patriciomg/cleanup-tool/internal/deps"
 	"github.com/patriciomg/cleanup-tool/internal/docker"
 	"github.com/patriciomg/cleanup-tool/internal/llm"
 	"github.com/patriciomg/cleanup-tool/internal/tui/common"
@@ -28,6 +29,7 @@ const (
 	viewAnalyzer
 	viewModels
 	viewModelsConfirm
+	viewDeps
 
 	// analyzerSummaryLineY is the 0-based Y position of the interactive
 	// analyzer summary line (header + blank + "Found X hints" + blank).
@@ -75,6 +77,16 @@ type Model struct {
 	trashed          map[string]bool
 	expanded         map[string]bool
 	scanStart        time.Time
+
+	ignoreHidden bool
+	ignorePaths  []string
+	scanPaths    []string
+	depsList     []*deps.DependencyDir
+	depsSelected int
+	depsErr      error
+	depsMsg      string
+	depsRunning  bool
+	depsMarked   map[string]bool
 	scanDuration     time.Duration
 	peakFilesPerSec  float64
 	peakDirsPerSec   float64
@@ -92,6 +104,12 @@ type Model struct {
 type ScanMsg struct {
 	Roots []*analyzer.Entry
 	Err   error
+}
+
+// depsMsg is sent when the dependency directory scan finishes.
+type depsMsg struct {
+	deps []*deps.DependencyDir
+	err  error
 }
 
 type progressMsg struct {
@@ -156,6 +174,7 @@ func New(roots []*analyzer.Entry, externalDir string, scanning bool, dockerClien
 		marked:           make(map[string]bool),
 		trashed:          make(map[string]bool),
 		expanded:         make(map[string]bool),
+		depsMarked:       make(map[string]bool),
 		dupMode:          dupMode,
 		progressInterval: progressInterval,
 	}
@@ -204,6 +223,16 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			m.rebuild()
 		}
+	case depsMsg:
+		m.depsRunning = false
+		if msg.err != nil {
+			m.depsErr = msg.err
+			m.depsMsg = "Deps error: " + msg.err.Error()
+		} else {
+			m.depsList = msg.deps
+			m.depsSelected = 0
+			m.depsMsg = fmt.Sprintf("Found %d dependency directories", len(msg.deps))
+		}
 	case progressMsg:
 		m.files = msg.files
 		m.dirs = msg.dirs
@@ -249,10 +278,14 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.err = msg.err
 			m.msg = "Trash failed: " + msg.err.Error()
 		} else {
+			removed := make(map[string]bool)
 			for _, p := range msg.paths {
 				m.trashed[p] = true
 				delete(m.marked, p)
+				delete(m.depsMarked, p)
+				removed[p] = true
 			}
+			m.filterDepsList(removed)
 			m.msg = fmt.Sprintf("Moved to Trash: %d items", len(msg.paths))
 		}
 	case moveMsg:
@@ -260,10 +293,14 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.err = msg.err
 			m.msg = "Move failed: " + msg.err.Error()
 		} else {
+			removed := make(map[string]bool)
 			for _, p := range msg.paths {
 				m.trashed[p] = true
 				delete(m.marked, p)
+				delete(m.depsMarked, p)
+				removed[p] = true
 			}
+			m.filterDepsList(removed)
 			m.msg = fmt.Sprintf("Moved to external: %d items", len(msg.paths))
 		}
 	case restoreMsg:
@@ -388,6 +425,8 @@ func (m *Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return m, tea.Quit
 		}
 		return m, nil
+	case viewDeps:
+		return m.handleDepsKey(msg)
 	}
 
 	switch msg.String() {
@@ -448,6 +487,12 @@ func (m *Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "M":
 		m.view = viewModels
 		return m, m.fetchLLMRegistries
+	case "P":
+		m.view = viewDeps
+		m.depsSelected = 0
+		m.depsErr = nil
+		m.depsMsg = ""
+		return m, m.fetchDeps()
 	case "a":
 		m.view = viewAnalyzer
 		m.analyzerRunning = true
@@ -1008,6 +1053,8 @@ func (m *Model) View() string {
 		return m.analyzerView()
 	case viewModels:
 		return m.modelsView()
+	case viewDeps:
+		return m.depsView()
 	}
 
 	if m.scanning {
@@ -1060,7 +1107,7 @@ func (m *Model) View() string {
 	hints := []string{
 		"[j/k/down/up] navigate", "[l/enter/right] expand", "[h/esc/left] collapse",
 		"[space] mark", "[c] clear", "[d] trash", "[m] move", "[u] restore",
-		"[a] analyze dir", "[A] analyze selection", "[D] Docker", "[M] Models", "[q] quit",
+		"[a] analyze dir", "[A] analyze selection", "[P] deps", "[D] Docker", "[M] Models", "[q] quit",
 	}
 	b.WriteString("\n" + common.FormatHelpBar(m.width, hints) + "\n")
 	if m.msg != "" {
@@ -1214,8 +1261,12 @@ func (m *Model) analyzerView() string {
 }
 
 func (m *Model) visibleRangeFor(n int) (int, int) {
+	return m.visibleRangeForWithSelected(n, m.selected)
+}
+
+func (m *Model) visibleRangeForWithSelected(n, sel int) (int, int) {
 	height := 20
-	start := m.selected - height/2
+	start := sel - height/2
 	if start < 0 {
 		start = 0
 	}
@@ -1292,6 +1343,66 @@ func (m *Model) dockerConfirmView() string {
 	return b.String()
 }
 
+func (m *Model) depsView() string {
+	var b strings.Builder
+	b.WriteString(common.HeaderStyle.Render("Dependency Directories"))
+	b.WriteString("\n\n")
+
+	if m.depsRunning {
+		b.WriteString(m.spinner.View() + " Scanning for dependency directories...\n")
+		b.WriteString("\n" + common.FormatHelpBar(m.width, []string{"[esc] back", "[q] quit"}) + "\n")
+		return b.String()
+	}
+
+	if m.depsErr != nil {
+		b.WriteString(common.DangerStyle.Render("Error: "+m.depsErr.Error()) + "\n")
+		b.WriteString("\n" + common.FormatHelpBar(m.width, []string{"[esc] back", "[q] quit"}) + "\n")
+		return b.String()
+	}
+
+	if len(m.depsList) == 0 {
+		b.WriteString("No dependency directories found.\n")
+		b.WriteString("\n" + common.FormatHelpBar(m.width, []string{"[esc] back", "[q] quit"}) + "\n")
+		return b.String()
+	}
+
+	if m.depsMsg != "" {
+		b.WriteString(m.depsMsg + "\n")
+	}
+
+	b.WriteString(fmt.Sprintf("%-3s %-12s %-10s %-16s %-16s %s\n", "", "Type", "Size", "Last Access", "Last Modified", "Path"))
+	start, end := m.visibleRangeForWithSelected(len(m.depsList), m.depsSelected)
+	for i := start; i < end && i < len(m.depsList); i++ {
+		d := m.depsList[i]
+		prefix := "[ ]"
+		if m.depsMarked[d.Path] {
+			prefix = "[x]"
+		}
+		line := fmt.Sprintf("%-3s %-12s %-10s %-16s %-16s %s",
+			prefix,
+			d.Type,
+			d.PrettySize(),
+			d.AccessTime.Format("2006-01-02"),
+			d.ModTime.Format("2006-01-02"),
+			common.Truncate(d.Path, 60),
+		)
+		if i == m.depsSelected {
+			line = common.SelectStyle.Render(line)
+		}
+		b.WriteString(line + "\n")
+	}
+
+	var total int64
+	for _, d := range m.depsList {
+		total += d.Size
+	}
+	b.WriteString(fmt.Sprintf("\nTotal: %s across %d directories\n", analyzer.PrettySize(total), len(m.depsList)))
+
+	hints := []string{"[↑/↓/j/k] navigate", "[space] mark", "[d] trash", "[m] move", "[r] refresh", "[esc] back", "[q] quit"}
+	b.WriteString("\n" + common.FormatHelpBar(m.width, hints) + "\n")
+	return b.String()
+}
+
 func (m *Model) fetchDockerUsage() tea.Msg {
 	if m.dockerClient == nil {
 		return dockerUsageMsg{err: fmt.Errorf("docker client not available")}
@@ -1310,6 +1421,123 @@ func (m *Model) pruneDockerSelected() tea.Msg {
 	}
 	reclaimed, err := m.dockerClient.Prune(context.Background(), items[m.dockerSelected])
 	return dockerPruneMsg{reclaimed: reclaimed, err: err}
+}
+
+func (m *Model) fetchDeps() tea.Cmd {
+	if m.depsRunning {
+		return nil
+	}
+	m.depsRunning = true
+	m.depsErr = nil
+	m.depsMsg = ""
+	return func() tea.Msg {
+		scanPaths := m.scanPaths
+		if len(scanPaths) == 0 {
+			for _, r := range m.roots {
+				scanPaths = append(scanPaths, r.Path)
+			}
+		}
+		finder := deps.NewFinder(deps.DefaultTargets(), m.ignorePaths, m.ignoreHidden)
+		found, err := finder.Find(context.Background(), scanPaths)
+		if err == nil {
+			deps.SortResults(found, "size")
+		}
+		return depsMsg{deps: found, err: err}
+	}
+}
+
+func (m *Model) handleDepsKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "q", "ctrl+c":
+		return m, tea.Quit
+	case "esc":
+		m.view = viewFiles
+		m.depsMsg = ""
+		return m, nil
+	case "up", "k":
+		if m.depsSelected > 0 {
+			m.depsSelected--
+		}
+	case "down", "j":
+		if m.depsSelected < len(m.depsList)-1 {
+			m.depsSelected++
+		}
+	case " ":
+		dep := m.selectedDep()
+		if dep != nil {
+			m.depsMarked[dep.Path] = !m.depsMarked[dep.Path]
+		}
+	case "d":
+		return m, m.trashMarkedOrSelectedDep()
+	case "m":
+		return m, m.moveMarkedOrSelectedDep()
+	case "r":
+		m.depsErr = nil
+		m.depsMsg = ""
+		return m, m.fetchDeps()
+	}
+	return m, nil
+}
+
+func (m *Model) trashMarkedOrSelectedDep() tea.Cmd {
+	paths := m.depsMarkedPaths()
+	if len(paths) == 0 {
+		dep := m.selectedDep()
+		if dep == nil {
+			return nil
+		}
+		paths = []string{dep.Path}
+	}
+	return m.trashPaths(paths)
+}
+
+func (m *Model) moveMarkedOrSelectedDep() tea.Cmd {
+	if m.externalDir == "" {
+		return func() tea.Msg { return moveMsg{err: fmt.Errorf("no external dir set")} }
+	}
+	paths := m.depsMarkedPaths()
+	if len(paths) == 0 {
+		dep := m.selectedDep()
+		if dep == nil {
+			return nil
+		}
+		paths = []string{dep.Path}
+	}
+	return m.movePaths(paths)
+}
+
+func (m *Model) depsMarkedPaths() []string {
+	var paths []string
+	for p, ok := range m.depsMarked {
+		if ok {
+			paths = append(paths, p)
+		}
+	}
+	return paths
+}
+
+func (m *Model) selectedDep() *deps.DependencyDir {
+	if m.depsSelected < 0 || m.depsSelected >= len(m.depsList) {
+		return nil
+	}
+	return m.depsList[m.depsSelected]
+}
+
+func (m *Model) filterDepsList(paths map[string]bool) {
+	var filtered []*deps.DependencyDir
+	for _, d := range m.depsList {
+		if !paths[d.Path] {
+			filtered = append(filtered, d)
+		}
+	}
+	m.depsList = filtered
+	if m.depsSelected >= len(m.depsList) {
+		if len(m.depsList) == 0 {
+			m.depsSelected = 0
+		} else {
+			m.depsSelected = len(m.depsList) - 1
+		}
+	}
 }
 
 func categoryLabel(item *analyzer.Entry) string {
@@ -1332,7 +1560,11 @@ func Run(roots []*analyzer.Entry, externalDir string, dockerClient docker.Client
 // RunWithScan starts the TUI and scans the given paths in the background.
 func RunWithScan(paths []string, ignore []string, ignoreHidden bool, externalDir string, dockerClient docker.Client, dupMode analyzer.DupHashMode, progressInterval int) error {
 	ctx, cancel := context.WithCancel(context.Background())
-	p := tea.NewProgram(New(nil, externalDir, true, dockerClient, dupMode, progressInterval), tea.WithMouseCellMotion())
+	m := New(nil, externalDir, true, dockerClient, dupMode, progressInterval)
+	m.ignoreHidden = ignoreHidden
+	m.ignorePaths = ignore
+	m.scanPaths = paths
+	p := tea.NewProgram(m, tea.WithMouseCellMotion())
 	go func() {
 		defer cancel()
 		scanner := analyzer.NewScanner(ignore, ignoreHidden, progressInterval)

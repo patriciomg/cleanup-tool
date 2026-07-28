@@ -3,10 +3,12 @@ package dua
 import (
 	"strings"
 	"testing"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/patriciomg/cleanup-tool/internal/analyzer"
+	"github.com/patriciomg/cleanup-tool/internal/deps"
 )
 
 func makeTree() []*analyzer.Entry {
@@ -118,6 +120,52 @@ func TestAnalyzerViewShowsHints(t *testing.T) {
 	v := m.View()
 	if !strings.Contains(v, "Found 2 hints") {
 		t.Fatalf("expected analyzer view to show hint count, got:\n%s", v)
+	}
+}
+
+func TestDepsView(t *testing.T) {
+	m := newModel(makeTree())
+	m.view = viewDeps
+	m.depsList = []*deps.DependencyDir{
+		{Path: "/tmp/a/node_modules", Type: "node_modules", Size: 100, AccessTime: time.Now(), ModTime: time.Now()},
+	}
+	v := m.View()
+	if !strings.Contains(v, "node_modules") {
+		t.Fatalf("expected deps view to show dependency directory, got:\n%s", v)
+	}
+}
+
+func TestHandleDepsKey(t *testing.T) {
+	m := newModel(makeTree())
+	m.view = viewDeps
+	m.depsList = []*deps.DependencyDir{
+		{Path: "/tmp/a/node_modules", Type: "node_modules", Size: 100, AccessTime: time.Now(), ModTime: time.Now()},
+		{Path: "/tmp/vendor", Type: "vendor", Size: 200, AccessTime: time.Now(), ModTime: time.Now()},
+	}
+
+	// Navigate down.
+	m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'j'}})
+	if m.depsSelected != 1 {
+		t.Fatalf("expected depsSelected 1 after j, got %d", m.depsSelected)
+	}
+
+	// Mark selected (d).
+	m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'d'}})
+	if !m.depsMarked["/tmp/vendor"] {
+		t.Fatal("expected /tmp/vendor to be marked after d")
+	}
+}
+
+func TestFilterDepsListClampsSelection(t *testing.T) {
+	m := newModel(makeTree())
+	m.depsList = []*deps.DependencyDir{
+		{Path: "/tmp/a/node_modules", Type: "node_modules", Size: 100, AccessTime: time.Now(), ModTime: time.Now()},
+		{Path: "/tmp/vendor", Type: "vendor", Size: 200, AccessTime: time.Now(), ModTime: time.Now()},
+	}
+	m.depsSelected = 1
+	m.filterDepsList(map[string]bool{"/tmp/vendor": true})
+	if m.depsSelected != 0 {
+		t.Fatalf("expected depsSelected clamped to 0, got %d", m.depsSelected)
 	}
 }
 

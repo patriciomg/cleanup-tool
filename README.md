@@ -55,7 +55,13 @@ A fast, terminal-based disk cleanup tool tailored for macOS developers who work 
 
 ## Install
 
-### Download a release (recommended)
+### Install with Homebrew (recommended)
+
+```bash
+brew install patriciomg/cleanup-tool/cleanup-tool
+```
+
+### Download a release
 
 Grab the latest macOS universal tarball from the [Releases page](https://github.com/patriciomg/cleanup-tool/releases/latest), then extract and install the binary:
 
@@ -142,7 +148,6 @@ make watch-test
 | `-benchmark` | Run a non-interactive scan and print throughput stats | `false` |
 | `-version` | Print version and exit | `false` |
 | `-out` | Export scan results to the specified file (works with any `-format`) | `""` |
-| `-json-out` | Deprecated: use `-out` instead | `""` |
 | `-json` | Alias for `-stdout` (non-interactive) | `false` |
 | `-stdout` | Export scan results to stdout (works with any `-format`; non-interactive) | `false` |
 | `-format` | Export format: `json`, `csv`, `tsv`, `yaml`. Defaults to `json`; auto-detected from `-out` extension when omitted. | `json` |
@@ -348,6 +353,7 @@ The classic terminal-style file browser. Select it with `-tui-style terminal` (`
 | u | Restore last moved / trashed item |
 | a | Analyze selected directory |
 | A | Analyze selected items |
+| P | Open dependency directories view (node_modules, vendor, .venv, Pods, etc.) |
 | D | Open Docker disk usage |
 | q | Quit |
 
@@ -369,6 +375,7 @@ item. Select the terminal view with `-tui-style terminal`.
 | c | Clear all marks |
 | a | Analyze current directory |
 | A | Analyze selected / marked items |
+| P | Open dependency directories view (node_modules, vendor, .venv, Pods, etc.) |
 | D | Open Docker disk usage |
 | ? | Toggle help |
 | q | Quit |
@@ -645,7 +652,7 @@ For the full release checklist, including GPG setup, see [`docs/releasing.md`](d
 
 ### Coming soon
 
-- [ ] Remove deprecated `-json-out` flag (use `-out` instead) — tracked in `.github/ISSUE_TEMPLATE/remove-deprecated-json-out-flag.md`
+- [x] Remove deprecated `-json-out` flag (use `-out` instead) — tracked in `.github/ISSUE_TEMPLATE/remove-deprecated-json-out-flag.md`
 - [ ] Native Homebrew formula
 
 ## Contributing

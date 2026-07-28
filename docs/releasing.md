@@ -63,6 +63,28 @@ gpg --verify dist/cleanup-tool-<version>-darwin-universal.tar.gz.asc \
    - Verify the signatures
    - Create the GitHub Release and upload the tarball, checksum file, and `.asc` signatures
 
+## Homebrew formula
+
+The repository includes a native Homebrew formula at [`Formula/cleanup-tool.rb`](../Formula/cleanup-tool.rb). The release workflow automatically updates the formula's `url`, `version`, and `sha256` after a release is published, so no manual editing is required for normal releases.
+
+Users can install or update the tool via Homebrew:
+
+```bash
+brew install patriciomg/cleanup-tool/cleanup-tool
+```
+
+> **Note:** If `main` is protected or the default `GITHUB_TOKEN` cannot push, the formula auto-bump step will fail. Add a repository secret named `TAP_GITHUB_TOKEN` (a Personal Access Token with `repo` scope). The release workflow uses it automatically when present.
+
+### Testing the formula bump locally
+
+You can dry-run the release tarball build and formula auto-bump without publishing anything:
+
+```bash
+./scripts/dry-run-formula-bump.sh [VERSION]
+```
+
+The script builds a local release tarball, updates `Formula/cleanup-tool.rb` with a local `file://` URL, runs `brew audit --new`, and restores the original formula afterwards.
+
 ## Verifying a published release
 
 ```bash

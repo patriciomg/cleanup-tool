@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bytes"
 	"fmt"
 	"os"
 	"os/exec"
@@ -10,42 +9,6 @@ import (
 	"strings"
 	"testing"
 )
-
-func TestEffectiveOutputFile(t *testing.T) {
-	cases := []struct {
-		out     string
-		jsonOut string
-		want    string
-	}{
-		{"", "", ""},
-		{"/tmp/out.csv", "", "/tmp/out.csv"},
-		{"", "/tmp/legacy.json", "/tmp/legacy.json"},
-		{"/tmp/out.csv", "/tmp/legacy.json", "/tmp/out.csv"},
-	}
-
-	for _, tc := range cases {
-		got := effectiveOutputFile(tc.out, tc.jsonOut)
-		if got != tc.want {
-			t.Fatalf("effectiveOutputFile(%q, %q) = %q, want %q", tc.out, tc.jsonOut, got, tc.want)
-		}
-	}
-}
-
-func TestMaybeWarnDeprecatedJSONOut(t *testing.T) {
-	var b bytes.Buffer
-	maybeWarnDeprecatedJSONOut(&b, "")
-	if b.String() != "" {
-		t.Fatalf("expected no warning when jsonOut is empty, got %q", b.String())
-	}
-
-	b.Reset()
-	maybeWarnDeprecatedJSONOut(&b, "/tmp/legacy.json")
-	got := b.String()
-	want := "warning: -json-out is deprecated; use -out instead\n"
-	if got != want {
-		t.Fatalf("expected warning %q, got %q", want, got)
-	}
-}
 
 func TestFormatFromExtension(t *testing.T) {
 	cases := []struct {
@@ -174,7 +137,7 @@ func TestCLIFormatAutoDetect(t *testing.T) {
 	}
 }
 
-func TestCLIDeprecatedJSONOut(t *testing.T) {
+func TestCLIRemovedJSONOutRejects(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping integration test in short mode")
 	}
@@ -185,28 +148,14 @@ func TestCLIDeprecatedJSONOut(t *testing.T) {
 	}
 	toolDir := filepath.Join(root, "cmd", "cleanup-tool")
 
-	tmp := t.TempDir()
-	legacyOut := filepath.Join(tmp, "legacy.json")
-
-	cmd := exec.Command("go", "run", ".", "-json-out", legacyOut, "-paths", "/tmp")
+	cmd := exec.Command("go", "run", ".", "-json-out", "/tmp/scan.json", "-paths", "/tmp")
 	cmd.Dir = toolDir
 	out, err := cmd.CombinedOutput()
-	if err != nil {
-		t.Fatalf("-json-out command failed: %v\n%s", err, out)
+	if err == nil {
+		t.Fatalf("expected -json-out to be rejected, got output: %s", out)
 	}
-
-	// Deprecation warning goes to stderr (and is captured by CombinedOutput).
-	if !strings.Contains(string(out), "warning: -json-out is deprecated; use -out instead") {
-		t.Fatalf("expected deprecation warning on stderr, got: %s", out)
-	}
-
-	// The file should still be written as JSON.
-	data, err := os.ReadFile(legacyOut)
-	if err != nil {
-		t.Fatalf("reading legacy JSON output: %v", err)
-	}
-	if !strings.HasPrefix(strings.TrimSpace(string(data)), "[") {
-		t.Fatalf("expected JSON array in legacy output, got: %s", string(data)[:min(len(data), 50)])
+	if !strings.Contains(string(out), "flag provided but not defined: -json-out") {
+		t.Fatalf("expected 'flag provided but not defined: -json-out', got: %s", out)
 	}
 }
 
