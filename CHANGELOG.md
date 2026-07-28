@@ -26,6 +26,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - README key bindings and CLI flag docs now refer to the `terminal` style and note that `dua` is the default.
 - The terminal/tree-style TUI implementation was moved from `internal/tui` to `internal/tui/terminal` (package `terminal`) to mirror the `internal/tui/dua` layout.
 
+### Documentation
+
+- Refreshed README screenshots to show the dua-style view as the default, followed by the terminal-style tree browser.
+- Reordered the demo/asciinema section: the default record command now captures the dua-style view; added a second command for the terminal-style view.
+- Added a "default view" callout near the top and a one-line CLI help note showing the default `-tui-style` value.
+- Updated the project tagline to describe the dua-style default and the terminal-style alternative.
+- Added a "Use the default dua-style shortcuts" tip covering navigation, marking, trash, move, analyzer, and Docker.
+
 ### Deprecated
 
 - `-json-out` is now deprecated in favor of `-out`. A warning is printed to stderr when `-json-out` is used.
