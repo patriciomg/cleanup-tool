@@ -35,13 +35,16 @@ endif
 
 .DEFAULT_GOAL := build
 
-.PHONY: build test vet clean run bench help install release release-arm64 release-amd64 release-universal release-tarball release-checksums release-sign release-clean
+.PHONY: build test test-version vet clean run bench help install release release-arm64 release-amd64 release-universal release-tarball release-checksums release-sign release-clean
 
 build: ## Build the cleanup-tool binary for the current host
 	go build -ldflags "$(LDFLAGS)" -o $(BUILD_DIR)/$(BINARY_NAME) $(CMD_PATH)
 
 test: ## Run all Go tests
 	go test ./...
+
+test-version: ## Run the -version smoke test
+	go test -v -run TestVersionFlag ./cmd/cleanup-tool/ -timeout 120s
 
 vet: ## Run go vet on all packages
 	go vet ./...
