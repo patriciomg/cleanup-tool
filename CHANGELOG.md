@@ -20,6 +20,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Test coverage for `maybeWarnDeprecatedJSONOut` and `formatFromExtension`/`resolveFormat`.
 - Integration tests verifying `-out` auto-detects CSV/YAML, explicit `-format` overrides the extension, and `-stdout` works with JSON/CSV/YAML.
 
+### Changed
+
+- The default interactive TUI style is now `dua`. The previous default (`tree`) is now named `terminal`, with `tree` kept as an alias.
+- README key bindings and CLI flag docs now refer to the `terminal` style and note that `dua` is the default.
+
 ### Deprecated
 
 - `-json-out` is now deprecated in favor of `-out`. A warning is printed to stderr when `-json-out` is used.

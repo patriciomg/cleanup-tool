@@ -93,7 +93,7 @@ make watch-test
 | `-stdout` | Export scan results to stdout (works with any `-format`; non-interactive) | `false` |
 | `-format` | Export format: `json`, `csv`, `tsv`, `yaml`. Defaults to `json`; auto-detected from `-out` extension when omitted. | `json` |
 | `-csv-columns` | Comma-separated CSV/TSV column names | `""` |
-| `-tui-style` | Interactive TUI style: `tree` or `dua` | `tree` |
+| `-tui-style` | Interactive TUI style: `terminal` or `dua` | `dua` |
 
 ## Exporting results
 
@@ -278,7 +278,9 @@ Example `~/.config/cleanup-tool/config.json`:
 
 ## Key bindings
 
-### File browser (tree style)
+### File browser (terminal style)
+
+The classic tree/terminal-style file browser. Select it with `-tui-style terminal` (`tree` is still accepted as an alias).
 
 | Key | Action |
 |-----|--------|
@@ -297,9 +299,9 @@ Example `~/.config/cleanup-tool/config.json`:
 
 ### Dua-style browser
 
-Start with `./cleanup-tool -tui-style dua`. This mode shows a flat list of the
-entries in the current directory, sorted by size, with a percentage and a small
-bar for each item.
+This is the default interactive view. It shows a flat list of the entries in the
+current directory, sorted by size, with a percentage and a small bar for each
+item. Select the terminal view with `-tui-style terminal`.
 
 | Key | Action |
 |-----|--------|

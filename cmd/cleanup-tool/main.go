@@ -71,7 +71,7 @@ func main() {
 	flag.StringVar(&csvColumns, "csv-columns", "", "Comma-separated CSV/TSV column names (default: all columns)")
 	flag.StringVar(&dupModeFlag, "dup-mode", cfg.DupMode, "Duplicate detection mode: first10mb, sample, full, smart")
 	flag.IntVar(&progressInterval, "progress-interval", cfg.ProgressInterval, "Report analyzer progress every N files")
-	flag.StringVar(&tuiStyle, "tui-style", "tree", "Interactive TUI style: tree or dua")
+	flag.StringVar(&tuiStyle, "tui-style", "dua", "Interactive TUI style: terminal or dua")
 	flag.Parse()
 
 	ignoreHidden := cfg.IgnoreHidden
@@ -163,7 +163,7 @@ func main() {
 
 	tuiStyle = strings.ToLower(tuiStyle)
 	switch tuiStyle {
-	case "tree", "":
+	case "terminal", "tree", "":
 		dockerClient := docker.NewClient()
 		if err := tui.RunWithScan(paths, cfg.IgnorePaths, ignoreHidden, utils.ExpandHome(externalFlag), dockerClient, dupMode, progressInterval); err != nil {
 			fmt.Fprintf(os.Stderr, "tui error: %v\n", err)
@@ -176,7 +176,7 @@ func main() {
 			os.Exit(1)
 		}
 	default:
-		fmt.Fprintf(os.Stderr, "invalid -tui-style %q; valid: tree, dua\n", tuiStyle)
+		fmt.Fprintf(os.Stderr, "invalid -tui-style %q; valid: terminal, dua\n", tuiStyle)
 		os.Exit(1)
 	}
 }
