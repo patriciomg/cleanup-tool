@@ -35,6 +35,49 @@ jobs:
       - name: Verify version string
         run: make test-version
 
+  test-actions-no-rsync:
+    name: Test actions package without rsync
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+      fail-fast: false
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Run actions tests with rsync removed from PATH
+        run: |
+          go_bin=$(command -v go)
+          go_dir="${go_bin%/*}"
+          PATH="$go_dir" go test ./internal/actions/...
+
+  test-docker-mock:
+    name: Test docker package with mock Docker daemon
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+      fail-fast: false
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Run docker tests with mock daemon
+        run: go test ./internal/docker/...
+
   release-smoke-test:
     name: Build release artifacts on macOS
     runs-on: macos-latest

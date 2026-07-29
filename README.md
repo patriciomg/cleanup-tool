@@ -367,6 +367,7 @@ The classic terminal-style file browser. Select it with `-tui-style terminal` (`
 | d | Move selected item to Trash |
 | m | Move selected item to external drive (`-external`) |
 | u | Restore last moved / trashed item |
+| Z | Undo last trash / move operation |
 | a | Analyze selected directory |
 | A | Analyze selected items |
 | P | Open dependency directories view (node_modules, vendor, .venv, Pods, etc.) |
@@ -388,6 +389,7 @@ item. Select the terminal view with `-tui-style terminal`.
 | x | Trash marked items (or selected item if none marked) |
 | m | Move marked items (or selected item) to external drive (`-external`) |
 | r | Restore selected item from Trash |
+| Z | Undo last trash / move operation |
 | c | Clear all marks |
 | a | Analyze current directory |
 | A | Analyze selected / marked items |
@@ -625,7 +627,7 @@ Add folders you never want to scan (e.g. `~/Library/Caches`, `node_modules`) to 
 
 ### I accidentally trashed something
 
-- In the file browser, press `u` to restore the last moved or trashed item.
+- In the file browser, press `Z` to undo the last trash or move operation, or `u` to restore the selected item from Trash.
 - If you already quit the app, open Trash in Finder and move the item back manually.
 
 ### Duplicate detection is slow or uses too much CPU
