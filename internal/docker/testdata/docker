@@ -1,0 +1,145 @@
+#!/usr/bin/env bash
+# Mock docker CLI for internal/docker package tests.
+# This script simulates a Docker daemon with canned resources so the tests
+# can exercise realClient without a real Docker installation.
+set -euo pipefail
+
+# First positional argument is the docker subcommand.
+cmd="${1:-}"
+shift || true
+
+case "$cmd" in
+  info)
+    # Daemon is up.
+    exit 0
+    ;;
+
+  system)
+    sub="${1:-}"
+    shift || true
+    case "$sub" in
+      df)
+        # Output canned system df rows regardless of remaining args.
+        cat <<'JSON'
+{"Type":"Images","TotalCount":"5","Active":"2","Size":"1.5GB","Reclaimable":"500MB"}
+{"Type":"Containers","TotalCount":"3","Active":"1","Size":"200MB","Reclaimable":"150MB"}
+{"Type":"Local Volumes","TotalCount":"2","Active":"1","Size":"100MB","Reclaimable":"50MB"}
+{"Type":"Build Cache","TotalCount":"0","Active":"0","Size":"0B","Reclaimable":"0B"}
+JSON
+        ;;
+      prune)
+        echo "Total reclaimed space: 100MB"
+        ;;
+    esac
+    ;;
+
+  image)
+    sub="${1:-}"
+    shift || true
+    case "$sub" in
+      ls)
+        # Output canned image rows regardless of remaining args.
+        cat <<'JSON'
+{"ID":"img1","Repository":"nginx","Tag":"latest","CreatedAt":"2024-01-01T00:00:00Z","Size":"100MB"}
+{"ID":"img2","Repository":"<none>","Tag":"<none>","CreatedAt":"2024-01-01T00:00:00Z","Size":"50MB"}
+JSON
+        ;;
+      rm)
+        exit 0
+        ;;
+      prune)
+        echo "Total reclaimed space: 20MB"
+        ;;
+    esac
+    ;;
+
+  container)
+    sub="${1:-}"
+    shift || true
+    case "$sub" in
+      prune)
+        echo "Total reclaimed space: 10MB"
+        ;;
+    esac
+    ;;
+
+  volume)
+    sub="${1:-}"
+    shift || true
+    case "$sub" in
+      ls)
+        # Output canned volume rows regardless of remaining args.
+        cat <<'JSON'
+{"Driver":"local","Labels":null,"Name":"vol1","Scope":"local"}
+{"Driver":"local","Labels":null,"Name":"vol2","Scope":"local"}
+JSON
+        ;;
+      rm)
+        exit 0
+        ;;
+      prune)
+        echo "Total reclaimed space: 30MB"
+        ;;
+    esac
+    ;;
+
+  builder)
+    sub="${1:-}"
+    shift || true
+    case "$sub" in
+      prune)
+        echo "Total reclaimed space: 40MB"
+        ;;
+    esac
+    ;;
+
+  ps)
+    # Detect "docker ps -q -a" vs "docker ps -a --format ..." by scanning args.
+    has_q=false
+    has_a=false
+    for arg in "$@"; do
+      case "$arg" in
+        -q|--quiet) has_q=true ;;
+        -a|--all) has_a=true ;;
+      esac
+    done
+    if $has_q && $has_a; then
+      echo "c1"
+      echo "c2"
+      exit 0
+    fi
+    cat <<'JSON'
+{"ID":"c1","Image":"img1","Names":"/web","Status":"Up 2 hours","CreatedAt":"2024-01-01T00:00:00Z","Size":"10MB"}
+{"ID":"c2","Image":"img2","Names":"/db","Status":"Exited (0) 3 hours ago","CreatedAt":"2024-01-01T00:00:00Z","Size":"5MB"}
+JSON
+    ;;
+
+  rm)
+    exit 0
+    ;;
+
+  inspect)
+    shift || true # --format
+    fmt="${1:-}"
+    shift || true
+    for id in "$@"; do
+      if [[ "$fmt" == *".Mounts"* ]]; then
+        case "$id" in
+          c1)
+            echo '[{"Type":"volume","Source":"vol1","Destination":"/data"}]'
+            ;;
+          *)
+            echo '[]'
+            ;;
+        esac
+      else
+        echo '{"com.docker.compose.project":"myproject"}'
+      fi
+    done
+    ;;
+
+  *)
+    echo "mock docker: unknown command: $cmd $*" >&2
+    exit 1
+    ;;
+esac

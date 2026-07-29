@@ -9,6 +9,10 @@ type MockClient struct {
 	UsageErr   error
 	PruneFunc  func(resourceType string) (int64, error)
 	Pruned     []string
+	Items      map[string][]DockerItem
+	ItemsErr   error
+	DeleteFunc func(item DockerItem) error
+	Deleted    []DockerItem
 }
 
 func (m *MockClient) IsRunning(ctx context.Context) bool {
@@ -25,4 +29,25 @@ func (m *MockClient) Prune(ctx context.Context, resourceType string) (int64, err
 		return m.PruneFunc(resourceType)
 	}
 	return 0, nil
+}
+
+func (m *MockClient) ListItems(ctx context.Context, itemType string) ([]DockerItem, error) {
+	if m.ItemsErr != nil {
+		return nil, m.ItemsErr
+	}
+	items := m.Items[itemType]
+	if items == nil {
+		return []DockerItem{}, nil
+	}
+	out := make([]DockerItem, len(items))
+	copy(out, items)
+	return out, nil
+}
+
+func (m *MockClient) DeleteItem(ctx context.Context, item DockerItem) error {
+	m.Deleted = append(m.Deleted, item)
+	if m.DeleteFunc != nil {
+		return m.DeleteFunc(item)
+	}
+	return nil
 }
