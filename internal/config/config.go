@@ -46,6 +46,10 @@ func Path() string {
 	return filepath.Join(xdg.ConfigHome, appName, "config.json")
 }
 
+func UndoPath() string {
+	return filepath.Join(xdg.ConfigHome, appName, "undo.json")
+}
+
 func Load() (*Config, error) {
 	path := Path()
 	data, err := os.ReadFile(path)

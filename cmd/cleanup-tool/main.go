@@ -14,6 +14,7 @@ import (
 	"github.com/patriciomg/cleanup-tool/internal/analyzer"
 	"github.com/patriciomg/cleanup-tool/internal/config"
 	"github.com/patriciomg/cleanup-tool/internal/docker"
+	"github.com/patriciomg/cleanup-tool/internal/recent"
 	"github.com/patriciomg/cleanup-tool/internal/tui/dua"
 	"github.com/patriciomg/cleanup-tool/internal/tui/terminal"
 	"github.com/patriciomg/cleanup-tool/internal/utils"
@@ -120,7 +121,13 @@ func main() {
 			}
 			paths = append(paths, abs)
 		}
-	} else {			paths = []string{utils.ExpandHome("~")}
+	} else {
+		recentPaths, err := recent.Paths()
+		if err == nil && len(recentPaths) > 0 {
+			paths = recentPaths
+		} else {
+			paths = []string{utils.ExpandHome("~")}
+		}
 	}
 
 	if len(paths) == 0 {
