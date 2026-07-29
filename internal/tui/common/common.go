@@ -7,6 +7,8 @@ import (
 	"math"
 	"sort"
 	"strings"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/charmbracelet/lipgloss"
 
@@ -99,6 +101,17 @@ type SummaryCategory struct {
 
 func (sc SummaryCategory) String() string {
 	return fmt.Sprintf("%d %s", sc.Value, sc.Label)
+}
+
+// Capitalize returns s with its first Unicode character upper-cased. It is a
+// tiny helper shared by the TUI packages so they do not duplicate formatting
+// utilities.
+func Capitalize(s string) string {
+	if s == "" {
+		return s
+	}
+	r, size := utf8.DecodeRuneInString(s)
+	return string(unicode.ToUpper(r)) + s[size:]
 }
 
 // SummaryCategories returns the three deletability summary buckets.
