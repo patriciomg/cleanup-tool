@@ -21,10 +21,15 @@ import (
 
 	"github.com/patriciomg/cleanup-tool/internal/actions"
 	"github.com/patriciomg/cleanup-tool/internal/analyzer"
+	"github.com/patriciomg/cleanup-tool/internal/config"
+	"github.com/patriciomg/cleanup-tool/internal/notifications"
 	"github.com/patriciomg/cleanup-tool/internal/deps"
+	"github.com/patriciomg/cleanup-tool/internal/recent"
 	"github.com/patriciomg/cleanup-tool/internal/docker"
 	"github.com/patriciomg/cleanup-tool/internal/llm"
 	"github.com/patriciomg/cleanup-tool/internal/tui/common"
+	"github.com/patriciomg/cleanup-tool/internal/tui/dockeritems"
+	"github.com/patriciomg/cleanup-tool/internal/undo"
 )
 
 // viewState distinguishes the main browser, analyzer, and Docker views.
@@ -34,6 +39,7 @@ const (
 	viewFiles viewState = iota
 	viewDocker
 	viewDockerConfirm
+	viewDockerItems
 	viewAnalyzer
 	viewModels
 	viewModelsConfirm
@@ -64,11 +70,12 @@ type Model struct {
 	showHelp  bool
 
 	externalDir      string
-	dockerClient     docker.Client
-	dockerUsage      *docker.Usage
-	dockerSelected   int
-	dockerErr        error
-	dockerMsg        string
+	dockerClient           docker.Client
+	dockerUsage            *docker.Usage
+	dockerSelected         int
+	dockerErr              error
+	dockerMsg              string
+	dockerItems            *dockeritems.Model
 	hints            []*analyzer.DeletabilityHint
 	analyzerFilter   analyzer.HintReason
 	analyzerRunning  bool
@@ -89,6 +96,9 @@ type Model struct {
 	ignoreHidden bool
 	ignorePaths  []string
 	scanPaths    []string
+	filter       string
+	filtering    bool
+	undoStack    *undo.Stack
 	depsList     []*deps.DependencyDir
 	depsSelected int
 	depsErr      error
@@ -132,7 +142,9 @@ func New(scanning bool, externalDir string, dockerClient docker.Client, dupMode 
 		llmClient:        llm.NewClient(),
 		dupMode:          dupMode,
 		progressInterval: progressInterval,
+		undoStack:        undo.NewStack(10),
 	}
+	_ = m.undoStack.Load(config.UndoPath())
 	if scanning {
 		m.scanStart = time.Now()
 	}
@@ -150,6 +162,9 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
+		if m.dockerItems != nil {
+			m.dockerItems, _ = m.dockerItems.UpdateModel(msg)
+		}
 		return m, nil
 	case progressMsg:
 		m.files = msg.files
@@ -207,6 +222,21 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.msg = fmt.Sprintf("Moved to external: %d items", len(msg.paths))
 		}
 		return m, nil
+	case undoMsg:
+		if msg.err != nil {
+			if msg.op.Type != "" && m.undoStack != nil {
+				m.undoStack.Push(msg.op)
+			}
+			m.err = msg.err
+			m.msg = "Undo failed: " + msg.err.Error()
+		} else {
+			for _, p := range msg.paths {
+				delete(m.trashed, p)
+			}
+			m.rebuild()
+			m.msg = fmt.Sprintf("Undone: %d items", len(msg.paths))
+		}
+		return m, nil
 	case restoreMsg:
 		if msg.err != nil {
 			m.err = msg.err
@@ -235,6 +265,14 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		} else {
 			m.dockerMsg = fmt.Sprintf("Reclaimed %s", analyzer.PrettySize(msg.reclaimed))
 		}
+		return m, m.fetchDockerUsage
+	case dockeritems.CloseMsg:
+		if msg.Quit {
+			return m, tea.Quit
+		}
+		m.view = viewDocker
+		return m, nil
+	case dockeritems.RefreshUsageMsg:
 		return m, m.fetchDockerUsage
 	case llmMsg:
 		if msg.err != nil {
@@ -292,13 +330,51 @@ func (m *Model) handleScanResult(msg scanMsg) (tea.Model, tea.Cmd) {
 		m.current = m.roots[0]
 	}
 	m.rebuild()
+
+	// Notify the user if the scan took a while.
+	if !m.scanStart.IsZero() {
+		notifications.ScanComplete(time.Since(m.scanStart))
+	}
+
 	return m, nil
 }
 
 func (m *Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	if m.filtering {
+		switch msg.Type {
+		case tea.KeyEsc:
+			m.filtering = false
+			m.filter = ""
+			m.rebuild()
+		case tea.KeyEnter:
+			m.filtering = false
+			m.rebuild()
+		case tea.KeyBackspace:
+			if len(m.filter) > 0 {
+				runes := []rune(m.filter)
+				m.filter = string(runes[:len(runes)-1])
+			}
+			m.rebuild()
+		case tea.KeyRunes:
+			m.filter += msg.String()
+			m.rebuild()
+		case tea.KeyCtrlC:
+			return m, tea.Quit
+		}
+		return m, nil
+	}
+
 	switch m.view {
 	case viewDockerConfirm:
 		return m.handleDockerConfirmKey(msg)
+	case viewDockerItems:
+		if m.dockerItems == nil {
+			m.view = viewDocker
+			return m, nil
+		}
+		var cmd tea.Cmd
+		m.dockerItems, cmd = m.dockerItems.UpdateModel(msg)
+		return m, cmd
 	case viewDocker:
 		return m.handleDockerKey(msg)
 	case viewAnalyzer:
@@ -350,6 +426,8 @@ func (m *Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.moveMarkedOrSelected()
 	case "r":
 		return m.restoreSelected()
+	case "Z":
+		return m.undoLast()
 	case "c":
 		m.clearMarks()
 	case "a":
@@ -388,6 +466,16 @@ func (m *Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.err = nil
 		m.msg = ""
 		return m, m.fetchDeps()
+	case "o":
+		if rps, err := recent.Paths(); err == nil && len(rps) > 0 {
+			m.msg = common.Truncate("Recent: "+strings.Join(rps, ", "), m.width-4)
+		} else {
+			m.msg = "No recent paths"
+		}
+	case "/":
+		m.filtering = true
+		m.filter = ""
+		m.rebuild()
 	case "?":
 		m.showHelp = true
 	}
@@ -411,6 +499,16 @@ func (m *Model) handleDockerKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 	case "p":
 		m.view = viewDockerConfirm
+	case "l", "enter", "tab":
+		cats := []string{"images", "containers", "volumes", "buildcache"}
+		cat := cats[m.dockerSelected]
+		if cat == "buildcache" {
+			m.dockerMsg = "Per-item view is not available for build cache. Use [p] to prune."
+			return m, nil
+		}
+		m.dockerItems = dockeritems.New(m.dockerClient, cat, m.width, m.height)
+		m.view = viewDockerItems
+		return m, m.dockerItems.Init()
 	case "r":
 		m.dockerErr = nil
 		m.dockerMsg = ""
@@ -562,8 +660,10 @@ func (m *Model) restoreSelected() (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	m.err = nil
+	trashDir := filepath.Join(os.Getenv("HOME"), ".Trash")
+	trashPath := filepath.Join(trashDir, filepath.Base(item.Path))
 	return m, func() tea.Msg {
-		if err := actions.Restore(filepath.Join(os.Getenv("HOME"), ".Trash"), item.Path); err != nil {
+		if err := actions.Restore(trashPath, item.Path); err != nil {
 			return restoreMsg{paths: []string{item.Path}, err: err}
 		}
 		return restoreMsg{paths: []string{item.Path}}
@@ -572,19 +672,62 @@ func (m *Model) restoreSelected() (tea.Model, tea.Cmd) {
 
 func (m *Model) trashPaths(paths []string) tea.Cmd {
 	return func() tea.Msg {
-		if err := actions.Trash(paths...); err != nil {
+		dests, err := actions.TrashWithDest(paths...)
+		if err != nil {
 			return trashMsg{paths: paths, err: err}
 		}
+		m.pushUndo(undo.OpTrash, paths, dests)
 		return trashMsg{paths: paths}
 	}
 }
 
 func (m *Model) movePaths(paths []string) tea.Cmd {
 	return func() tea.Msg {
-		if err := actions.MoveToExternal(m.externalDir, paths...); err != nil {
+		dests, err := actions.MoveToExternalWithDest(m.externalDir, paths...)
+		if err != nil {
 			return moveMsg{paths: paths, err: err}
 		}
+		m.pushUndo(undo.OpMove, paths, dests)
 		return moveMsg{paths: paths}
+	}
+}
+
+func (m *Model) pushUndo(typ undo.OpType, paths, dests []string) {
+	if m.undoStack == nil {
+		return
+	}
+	op := undo.Operation{
+		Type:      typ,
+		Timestamp: time.Now(),
+		Items:     make([]undo.Item, len(paths)),
+	}
+	for i, p := range paths {
+		op.Items[i] = undo.Item{Original: p, Dest: dests[i]}
+	}
+	m.undoStack.Push(op)
+}
+
+func (m *Model) undoLast() (tea.Model, tea.Cmd) {
+	if m.undoStack == nil || m.undoStack.Len() == 0 {
+		m.msg = "Nothing to undo"
+		return m, nil
+	}
+	op, ok := m.undoStack.Pop()
+	if !ok {
+		m.msg = "Nothing to undo"
+		return m, nil
+	}
+
+	var originalPaths []string
+	for _, it := range op.Items {
+		originalPaths = append(originalPaths, it.Original)
+	}
+
+	return m, func() tea.Msg {
+		if err := actions.Undo(op); err != nil {
+			return undoMsg{op: op, paths: originalPaths, err: err}
+		}
+		return undoMsg{op: op, paths: originalPaths}
 	}
 }
 
@@ -599,6 +742,12 @@ type moveMsg struct {
 }
 
 type restoreMsg struct {
+	paths []string
+	err   error
+}
+
+type undoMsg struct {
+	op    undo.Operation
 	paths []string
 	err   error
 }
@@ -641,7 +790,18 @@ func (m *Model) rebuild() {
 		m.selected = 0
 		return
 	}
-	m.items = sortedChildren(m.current.Children)
+	children := m.current.Children
+	if m.filter != "" {
+		f := strings.ToLower(m.filter)
+		filtered := make([]*analyzer.Entry, 0, len(children))
+		for _, c := range children {
+			if strings.Contains(strings.ToLower(c.Name), f) {
+				filtered = append(filtered, c)
+			}
+		}
+		children = filtered
+	}
+	m.items = sortedChildren(children)
 	if m.selected >= len(m.items) {
 		if len(m.items) == 0 {
 			m.selected = 0
@@ -675,6 +835,11 @@ func (m *Model) View() string {
 		return m.dockerView()
 	case viewDockerConfirm:
 		return m.dockerConfirmView()
+	case viewDockerItems:
+		if m.dockerItems == nil {
+			return ""
+		}
+		return m.dockerItems.View()
 	case viewAnalyzer:
 		return m.analyzerView()
 	case viewModels:
@@ -696,10 +861,21 @@ func (m *Model) View() string {
 	if m.msg != "" {
 		b.WriteString(common.MsgStyle.Render(m.msg) + "\n")
 	}
+	if m.filtering || m.filter != "" {
+		cursor := ""
+		if m.filtering {
+			cursor = "_"
+		}
+		b.WriteString(fmt.Sprintf("Filter: /%s%s\n", m.filter, cursor))
+	}
 	b.WriteString("\n")
 
 	if len(m.items) == 0 {
-		b.WriteString("No items.\n")
+		if m.filter != "" {
+			b.WriteString("No items match your filter.\n")
+		} else {
+			b.WriteString("No items.\n")
+		}
 		b.WriteString(common.FormatHelpBar(m.width, []string{"[?] help", "[q] quit"}))
 		return b.String()
 	}
@@ -729,8 +905,8 @@ func (m *Model) View() string {
 
 	hints := []string{
 		"[j/k/↓/↑] nav", "[enter/l] descend", "[backspace/h/u] up",
-		"[d] mark", "[x] trash", "[m] move", "[r] restore",
-		"[a] analyze dir", "[A] analyze selection", "[P] deps", "[D] Docker", "[M] Models", "[c] clear", "[?] help", "[q] quit",
+		"[d] mark", "[x] trash", "[m] move", "[r] restore", "[Z] undo",
+		"[a] analyze dir", "[A] analyze selection", "[P] deps", "[D] Docker", "[M] Models", "[o] recent", "[/] filter", "[c] clear", "[?] help", "[q] quit",
 	}
 	b.WriteString("\n" + common.FormatHelpBar(m.width, hints) + "\n")
 	return b.String()
@@ -765,6 +941,7 @@ func (m *Model) helpView() string {
 		"  x            trash marked items (or selected if none marked)",
 		"  m            move marked items (or selected) to external drive",
 		"  r            restore selected item from Trash",
+		"  Z            undo last trash/move operation",
 		"  c            clear all marks",
 		"  a            analyze current directory",
 		"  A            analyze selected/marked items",
@@ -931,7 +1108,7 @@ func (m *Model) dockerView() string {
 	if m.dockerMsg != "" {
 		b.WriteString(m.dockerMsg + "\n")
 	}
-	hints := []string{"[↑/↓/j/k] navigate", "[p] prune selected", "[r] refresh", "[esc] back", "[q] quit"}
+	hints := []string{"[↑/↓/j/k] navigate", "[p] prune selected", "[l/enter/tab] item list", "[r] refresh", "[esc] back", "[q] quit"}
 	b.WriteString("\n" + common.FormatHelpBar(m.width, hints) + "\n")
 	return b.String()
 }
@@ -1532,6 +1709,7 @@ func findEntryByPath(roots []*analyzer.Entry, target string) *analyzer.Entry {
 // background. progressInterval controls how often scan progress is reported
 // (a value <= 0 disables progress reports).
 func RunWithScan(paths []string, ignore []string, ignoreHidden bool, externalDir string, dockerClient docker.Client, dupMode analyzer.DupHashMode, progressInterval int) error {
+	_ = recent.Save(paths)
 	ctx, cancel := context.WithCancel(context.Background())
 	m := New(true, externalDir, dockerClient, dupMode, progressInterval)
 	m.ignoreHidden = ignoreHidden

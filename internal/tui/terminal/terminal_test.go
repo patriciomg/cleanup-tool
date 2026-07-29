@@ -8,7 +8,10 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/patriciomg/cleanup-tool/internal/analyzer"
 	"github.com/patriciomg/cleanup-tool/internal/deps"
+	"github.com/patriciomg/cleanup-tool/internal/docker"
 	"github.com/patriciomg/cleanup-tool/internal/tui/common"
+	"github.com/patriciomg/cleanup-tool/internal/tui/dockeritems"
+	"github.com/patriciomg/cleanup-tool/internal/tui/tuitest"
 )
 
 func entry(name, path string, size int64, isDir bool, children ...*analyzer.Entry) *analyzer.Entry {
@@ -441,6 +444,65 @@ func TestFilterDepsListClampsSelection(t *testing.T) {
 	m.filterDepsList(map[string]bool{"/dir/vendor": true})
 	if m.depsSelected != 0 {
 		t.Fatalf("expected depsSelected clamped to 0, got %d", m.depsSelected)
+	}
+}
+
+func TestDockerItemsView(t *testing.T) {
+	item := docker.DockerItem{Type: "image", ID: "abc", Name: "img"}
+	mock := &docker.MockClient{
+		Running:   true,
+		UsageResp: &docker.Usage{},
+		Items: map[string][]docker.DockerItem{
+			"images": {item},
+		},
+	}
+	parent := entry("dir", "/dir", 10, true)
+	m := New([]*analyzer.Entry{parent}, "", false, mock, analyzer.DupHashSmart, 100)
+	m.view = viewDockerItems
+	m.dockerItems = dockeritems.New(m.dockerClient, "images", 80, 24)
+	cmd := m.dockerItems.Init()
+	if cmd != nil {
+		updated, _ := m.dockerItems.Update(cmd())
+		m.dockerItems = updated.(*dockeritems.Model)
+	}
+	v := m.dockerItems.View()
+	if !strings.Contains(v, "img") {
+		t.Fatalf("expected docker items view to show image name, got:\n%s", v)
+	}
+}
+
+func TestDockerItemDeleteResetsSelection(t *testing.T) {
+	item := docker.DockerItem{Type: "image", ID: "abc", Name: "img"}
+	mock := &docker.MockClient{
+		Items: map[string][]docker.DockerItem{
+			"images": {item},
+		},
+	}
+	parent := entry("dir", "/dir", 10, true)
+	m := New([]*analyzer.Entry{parent}, "", false, mock, analyzer.DupHashSmart, 100)
+	m.view = viewDockerItems
+	m.dockerItems = dockeritems.New(m.dockerClient, "images", 80, 24)
+	// Load items into the sub-model.
+	m.dockerItems, _ = tuitest.Send(m.dockerItems, m.dockerItems.Init()())
+
+	// Press 'd' to select the current item for deletion.
+	updated, _ := tuitest.SendKey(m.dockerItems, 'd')
+	m.dockerItems = updated
+	if !strings.Contains(m.dockerItems.View(), "Confirm Docker item deletion") {
+		t.Fatalf("expected confirm view, got:\n%s", m.dockerItems.View())
+	}
+
+	// Press 'y' to confirm; a delete command should be returned.
+	updated, delCmd := tuitest.SendKey(m.dockerItems, 'y')
+	m.dockerItems = updated
+	if delCmd == nil {
+		t.Fatal("expected delete command to be returned")
+	}
+
+	// Execute the delete command and verify the mock recorded it.
+	delCmd()
+	if len(mock.Deleted) != 1 || mock.Deleted[0].ID != "abc" {
+		t.Fatalf("expected mock to record deletion, got %v", mock.Deleted)
 	}
 }
 

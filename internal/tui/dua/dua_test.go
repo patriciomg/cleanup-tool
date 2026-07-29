@@ -9,6 +9,9 @@ import (
 
 	"github.com/patriciomg/cleanup-tool/internal/analyzer"
 	"github.com/patriciomg/cleanup-tool/internal/deps"
+	"github.com/patriciomg/cleanup-tool/internal/docker"
+	"github.com/patriciomg/cleanup-tool/internal/tui/dockeritems"
+	"github.com/patriciomg/cleanup-tool/internal/tui/tuitest"
 )
 
 func makeTree() []*analyzer.Entry {
@@ -176,5 +179,104 @@ func TestDockerViewRequiresClient(t *testing.T) {
 	v := m.View()
 	if !strings.Contains(v, "docker client not available") {
 		t.Fatalf("expected docker client unavailable message, got:\n%s", v)
+	}
+}
+
+func TestDockerItemsView(t *testing.T) {
+	item := docker.DockerItem{Type: "image", ID: "abc", Name: "img"}
+	mock := &docker.MockClient{
+		Running:   true,
+		UsageResp: &docker.Usage{},
+		Items: map[string][]docker.DockerItem{
+			"images": {item},
+		},
+	}
+	m := newModel(nil)
+	m.dockerClient = mock
+	m.view = viewDockerItems
+	m.dockerItems = dockeritems.New(m.dockerClient, "images", 80, 24)
+	cmd := m.dockerItems.Init()
+	if cmd != nil {
+		updated, _ := m.dockerItems.Update(cmd())
+		m.dockerItems = updated.(*dockeritems.Model)
+	}
+	v := m.dockerItems.View()
+	if !strings.Contains(v, "img") {
+		t.Fatalf("expected docker items view to show image name, got:\n%s", v)
+	}
+}
+
+func TestDockerItemDeleteResetsSelection(t *testing.T) {
+	item := docker.DockerItem{Type: "image", ID: "abc", Name: "img"}
+	mock := &docker.MockClient{
+		Items: map[string][]docker.DockerItem{
+			"images": {item},
+		},
+	}
+	m := newModel(nil)
+	m.dockerClient = mock
+	m.view = viewDockerItems
+	m.dockerItems = dockeritems.New(m.dockerClient, "images", 80, 24)
+	// Load items into the sub-model.
+	m.dockerItems, _ = tuitest.Send(m.dockerItems, m.dockerItems.Init()())
+
+	// Press 'd' to select the current item for deletion.
+	updated, _ := tuitest.SendKey(m.dockerItems, 'd')
+	m.dockerItems = updated
+	if !strings.Contains(m.dockerItems.View(), "Confirm Docker item deletion") {
+		t.Fatalf("expected confirm view, got:\n%s", m.dockerItems.View())
+	}
+
+	// Press 'y' to confirm; a delete command should be returned.
+	updated, delCmd := tuitest.SendKey(m.dockerItems, 'y')
+	m.dockerItems = updated
+	if delCmd == nil {
+		t.Fatal("expected delete command to be returned")
+	}
+
+	// Execute the delete command and verify the mock recorded it.
+	delCmd()
+	if len(mock.Deleted) != 1 || mock.Deleted[0].ID != "abc" {
+		t.Fatalf("expected mock to record deletion, got %v", mock.Deleted)
+	}
+}
+
+func TestFilterItems(t *testing.T) {
+	m := newModel(makeTree())
+	m.filter = "a"
+	m.rebuild()
+	if len(m.items) != 1 || m.items[0].Path != "/tmp/a" {
+		t.Fatalf("expected 1 filtered item (/tmp/a), got %v", m.items)
+	}
+}
+
+func TestFilterModeTyping(t *testing.T) {
+	m := newModel(makeTree())
+	m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'/'}})
+	if !m.filtering {
+		t.Fatal("expected to enter filter mode after /")
+	}
+	m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'b'}})
+	if m.filter != "b" {
+		t.Fatalf("expected filter 'b', got %q", m.filter)
+	}
+	if len(m.items) != 1 || m.items[0].Path != "/tmp/b" {
+		t.Fatalf("expected 1 filtered item (/tmp/b), got %v", m.items)
+	}
+}
+
+func TestFilterModeEscapeClearsFilter(t *testing.T) {
+	m := newModel(makeTree())
+	m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'/'}})
+	m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'b'}})
+	m.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	if m.filtering {
+		t.Fatal("expected to exit filter mode after esc")
+	}
+	if m.filter != "" {
+		t.Fatalf("expected empty filter after esc, got %q", m.filter)
+	}
+	if len(m.items) != 2 {
+		t.Fatalf("expected all 2 items after clearing filter, got %d", len(m.items))
 	}
 }
