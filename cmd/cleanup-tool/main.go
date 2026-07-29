@@ -174,13 +174,13 @@ func main() {
 	switch style {
 	case "terminal":
 		dockerClient := docker.NewClient()
-		if err := terminal.RunWithScan(paths, cfg.IgnorePaths, ignoreHidden, utils.ExpandHome(externalFlag), dockerClient, dupMode, progressInterval); err != nil {
+		if err := terminal.RunWithScan(paths, cfg.IgnorePaths, ignoreHidden, utils.ExpandHome(externalFlag), dockerClient, dupMode, progressInterval, cfg); err != nil {
 			fmt.Fprintf(os.Stderr, "terminal error: %v\n", err)
 			os.Exit(1)
 		}
 	case "dua":
 		dockerClient := docker.NewClient()
-		if err := dua.RunWithScan(paths, cfg.IgnorePaths, ignoreHidden, utils.ExpandHome(externalFlag), dockerClient, dupMode, progressInterval); err != nil {
+		if err := dua.RunWithScan(paths, cfg.IgnorePaths, ignoreHidden, utils.ExpandHome(externalFlag), dockerClient, dupMode, progressInterval, cfg); err != nil {
 			fmt.Fprintf(os.Stderr, "dua error: %v\n", err)
 			os.Exit(1)
 		}

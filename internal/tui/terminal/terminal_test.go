@@ -29,7 +29,7 @@ func TestMarkedSelectionsPersistAcrossRebuild(t *testing.T) {
 	parent := entry("parent", "/parent", 100, true, child)
 	parent.Children[0].Parent = parent
 
-	m := New([]*analyzer.Entry{parent}, "", false, nil, analyzer.DupHashSmart, 100)
+	m := New([]*analyzer.Entry{parent}, "", false, nil, analyzer.DupHashSmart, 100, nil)
 
 	// Mark the child.
 	m.marked[child.Path] = true
@@ -47,7 +47,7 @@ func TestMarkedSelectionsPersistAcrossNavigation(t *testing.T) {
 	parent := entry("parent", "/parent", 10, true, sub)
 	sub.Parent = parent
 
-	m := New([]*analyzer.Entry{parent}, "", false, nil, analyzer.DupHashSmart, 100)
+	m := New([]*analyzer.Entry{parent}, "", false, nil, analyzer.DupHashSmart, 100, nil)
 
 	// Mark grandchild.
 	m.marked[grandchild.Path] = true
@@ -71,7 +71,7 @@ func TestClearMarks(t *testing.T) {
 	parent := entry("dir", "/dir", 10, true, fileA)
 	fileA.Parent = parent
 
-	m := New([]*analyzer.Entry{parent}, "", false, nil, analyzer.DupHashSmart, 100)
+	m := New([]*analyzer.Entry{parent}, "", false, nil, analyzer.DupHashSmart, 100, nil)
 	m.marked[fileA.Path] = true
 	m.clearMarks()
 
@@ -85,7 +85,7 @@ func TestNewStoresAnalyzerOptions(t *testing.T) {
 	parent := entry("dir", "/dir", 10, true, fileA)
 	fileA.Parent = parent
 
-	m := New([]*analyzer.Entry{parent}, "", false, nil, analyzer.DupHashFull, 42)
+	m := New([]*analyzer.Entry{parent}, "", false, nil, analyzer.DupHashFull, 42, nil)
 	if m.dupMode != analyzer.DupHashFull {
 		t.Fatalf("expected dupMode full, got %v", m.dupMode)
 	}
@@ -99,7 +99,7 @@ func TestToggleFilter(t *testing.T) {
 	parent := entry("dir", "/dir", 10, true, fileA)
 	fileA.Parent = parent
 
-	m := New([]*analyzer.Entry{parent}, "", false, nil, analyzer.DupHashSmart, 100)
+	m := New([]*analyzer.Entry{parent}, "", false, nil, analyzer.DupHashSmart, 100, nil)
 
 	m.toggleFilter(analyzer.ReasonOld)
 	if m.analyzerFilter != analyzer.ReasonOld {
@@ -122,7 +122,7 @@ func TestHandleMouseFilterClick(t *testing.T) {
 	dup.Parent = parent
 	log.Parent = parent
 
-	m := New([]*analyzer.Entry{parent}, "", false, nil, analyzer.DupHashSmart, 100)
+	m := New([]*analyzer.Entry{parent}, "", false, nil, analyzer.DupHashSmart, 100, nil)
 	m.hints = []*analyzer.DeletabilityHint{
 		{Entry: old, Reason: analyzer.ReasonOld},
 		{Entry: dup, Reason: analyzer.ReasonDuplicate},
@@ -168,7 +168,7 @@ func TestHandleMouseStackedBarClick(t *testing.T) {
 	dup.Parent = parent
 	log.Parent = parent
 
-	m := New([]*analyzer.Entry{parent}, "", false, nil, analyzer.DupHashSmart, 100)
+	m := New([]*analyzer.Entry{parent}, "", false, nil, analyzer.DupHashSmart, 100, nil)
 	m.hints = []*analyzer.DeletabilityHint{
 		{Entry: old, Reason: analyzer.ReasonOld},
 		{Entry: dup, Reason: analyzer.ReasonDuplicate},
@@ -215,7 +215,7 @@ func TestHandleMouseStackedBarClick_ZeroWidthSegment(t *testing.T) {
 	old.Parent = parent
 	dup.Parent = parent
 
-	m := New([]*analyzer.Entry{parent}, "", false, nil, analyzer.DupHashSmart, 100)
+	m := New([]*analyzer.Entry{parent}, "", false, nil, analyzer.DupHashSmart, 100, nil)
 	m.hints = []*analyzer.DeletabilityHint{
 		{Entry: old, Reason: analyzer.ReasonOld},
 		{Entry: dup, Reason: analyzer.ReasonDuplicate},
@@ -243,7 +243,7 @@ func TestCycleFilter(t *testing.T) {
 	parent := entry("dir", "/dir", 10, true, fileA)
 	fileA.Parent = parent
 
-	m := New([]*analyzer.Entry{parent}, "", false, nil, analyzer.DupHashSmart, 100)
+	m := New([]*analyzer.Entry{parent}, "", false, nil, analyzer.DupHashSmart, 100, nil)
 	if m.analyzerFilter != "" {
 		t.Fatalf("expected no filter initially, got %q", m.analyzerFilter)
 	}
@@ -279,7 +279,7 @@ func TestFilteredHints(t *testing.T) {
 	dup.Parent = parent
 	log.Parent = parent
 
-	m := New([]*analyzer.Entry{parent}, "", false, nil, analyzer.DupHashSmart, 100)
+	m := New([]*analyzer.Entry{parent}, "", false, nil, analyzer.DupHashSmart, 100, nil)
 	m.hints = []*analyzer.DeletabilityHint{
 		{Entry: old, Reason: analyzer.ReasonOld},
 		{Entry: dup, Reason: analyzer.ReasonDuplicate},
@@ -400,7 +400,7 @@ func TestFormatHelpBar(t *testing.T) {
 
 func TestDepsView(t *testing.T) {
 	parent := entry("dir", "/dir", 10, true)
-	m := New([]*analyzer.Entry{parent}, "", false, nil, analyzer.DupHashSmart, 100)
+	m := New([]*analyzer.Entry{parent}, "", false, nil, analyzer.DupHashSmart, 100, nil)
 	m.view = viewDeps
 	m.depsList = []*deps.DependencyDir{
 		{Path: "/dir/node_modules", Type: "node_modules", Size: 100, AccessTime: time.Now(), ModTime: time.Now()},
@@ -413,7 +413,7 @@ func TestDepsView(t *testing.T) {
 
 func TestHandleDepsKey(t *testing.T) {
 	parent := entry("dir", "/dir", 10, true)
-	m := New([]*analyzer.Entry{parent}, "", false, nil, analyzer.DupHashSmart, 100)
+	m := New([]*analyzer.Entry{parent}, "", false, nil, analyzer.DupHashSmart, 100, nil)
 	m.view = viewDeps
 	m.depsList = []*deps.DependencyDir{
 		{Path: "/dir/node_modules", Type: "node_modules", Size: 100, AccessTime: time.Now(), ModTime: time.Now()},
@@ -435,7 +435,7 @@ func TestHandleDepsKey(t *testing.T) {
 
 func TestFilterDepsListClampsSelection(t *testing.T) {
 	parent := entry("dir", "/dir", 10, true)
-	m := New([]*analyzer.Entry{parent}, "", false, nil, analyzer.DupHashSmart, 100)
+	m := New([]*analyzer.Entry{parent}, "", false, nil, analyzer.DupHashSmart, 100, nil)
 	m.depsList = []*deps.DependencyDir{
 		{Path: "/dir/node_modules", Type: "node_modules", Size: 100, AccessTime: time.Now(), ModTime: time.Now()},
 		{Path: "/dir/vendor", Type: "vendor", Size: 200, AccessTime: time.Now(), ModTime: time.Now()},
@@ -457,7 +457,7 @@ func TestDockerItemsView(t *testing.T) {
 		},
 	}
 	parent := entry("dir", "/dir", 10, true)
-	m := New([]*analyzer.Entry{parent}, "", false, mock, analyzer.DupHashSmart, 100)
+	m := New([]*analyzer.Entry{parent}, "", false, mock, analyzer.DupHashSmart, 100, nil)
 	m.view = viewDockerItems
 	m.dockerItems = dockeritems.New(m.dockerClient, "images", 80, 24)
 	cmd := m.dockerItems.Init()
@@ -479,7 +479,7 @@ func TestDockerItemDeleteResetsSelection(t *testing.T) {
 		},
 	}
 	parent := entry("dir", "/dir", 10, true)
-	m := New([]*analyzer.Entry{parent}, "", false, mock, analyzer.DupHashSmart, 100)
+	m := New([]*analyzer.Entry{parent}, "", false, mock, analyzer.DupHashSmart, 100, nil)
 	m.view = viewDockerItems
 	m.dockerItems = dockeritems.New(m.dockerClient, "images", 80, 24)
 	// Load items into the sub-model.
@@ -515,7 +515,7 @@ func TestSelectedPathsReturnsGlobalMarks(t *testing.T) {
 	fileA.Parent = parent
 	sub.Parent = parent
 
-	m := New([]*analyzer.Entry{parent}, "", false, nil, analyzer.DupHashSmart, 100)
+	m := New([]*analyzer.Entry{parent}, "", false, nil, analyzer.DupHashSmart, 100, nil)
 	m.marked[fileA.Path] = true
 	m.marked[fileB.Path] = true
 

@@ -25,7 +25,7 @@ func makeTree() []*analyzer.Entry {
 }
 
 func newModel(roots []*analyzer.Entry) *Model {
-	m := New(false, "", nil, analyzer.DupHashSmart, 100)
+	m := New(false, "", nil, analyzer.DupHashSmart, 100, nil)
 	if roots != nil {
 		m.Update(scanMsg{roots: roots})
 	}

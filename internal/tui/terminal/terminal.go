@@ -36,6 +36,7 @@ const (
 	viewModels
 	viewModelsConfirm
 	viewDeps
+	viewConfirmAction
 
 	// analyzerSummaryLineY is the 0-based Y position of the interactive
 	// analyzer summary line (header + blank + "Found X hints" + blank).
@@ -109,6 +110,17 @@ type Model struct {
 	analyzerDoneCh   chan analyzerMsg
 	dupMode          analyzer.DupHashMode
 	progressInterval int
+	cfg              *config.Config
+
+	pendingAction *actionIntent
+}
+
+// actionIntent holds a trash/move action awaiting user confirmation.
+type actionIntent struct {
+	actionType string // "trash" or "move"
+	paths      []string
+	totalSize  int64
+	returnView viewState
 }
 
 type ScanMsg struct {
@@ -178,7 +190,7 @@ type undoMsg struct {
 	err   error
 }
 
-func New(roots []*analyzer.Entry, externalDir string, scanning bool, dockerClient docker.Client, dupMode analyzer.DupHashMode, progressInterval int) *Model {
+func New(roots []*analyzer.Entry, externalDir string, scanning bool, dockerClient docker.Client, dupMode analyzer.DupHashMode, progressInterval int, cfg *config.Config) *Model {
 	sp := spinner.New()
 	sp.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("#7aa2f7"))
 	m := &Model{
@@ -195,6 +207,7 @@ func New(roots []*analyzer.Entry, externalDir string, scanning bool, dockerClien
 		dupMode:          dupMode,
 		progressInterval: progressInterval,
 		undoStack:        undo.NewStack(10),
+		cfg:              cfg,
 	}
 	_ = m.undoStack.Load(config.UndoPath())
 	if len(roots) > 0 {
@@ -202,12 +215,64 @@ func New(roots []*analyzer.Entry, externalDir string, scanning bool, dockerClien
 	}
 	common.SortTree(m.roots)
 	m.rebuild()
+	m.applyPreferences()
 	if scanning {
 		m.scanStart = time.Now()
 		m.peakFilesPerSec = 0
 		m.peakDirsPerSec = 0
 	}
 	return m
+}
+
+// applyPreferences restores TUI state from the loaded config.
+func (m *Model) applyPreferences() {
+	if m.cfg == nil {
+		return
+	}
+	switch m.cfg.LastView {
+	case "docker":
+		m.view = viewDocker
+	case "analyzer":
+		m.view = viewAnalyzer
+	case "models":
+		m.view = viewModels
+	case "deps":
+		m.view = viewDeps
+	default:
+		m.view = viewFiles
+	}
+	if m.cfg.AnalyzerFilter != "" {
+		m.analyzerFilter = analyzer.HintReason(m.cfg.AnalyzerFilter)
+	}
+}
+
+// saveViewPreference persists the current view in the config when the user
+// navigates to a named top-level view.
+func (m *Model) saveViewPreference() {
+	if m.cfg == nil {
+		return
+	}
+	switch m.view {
+	case viewFiles:
+		m.cfg.LastView = "files"
+	case viewDocker, viewDockerItems, viewDockerConfirm:
+		m.cfg.LastView = "docker"
+	case viewAnalyzer:
+		m.cfg.LastView = "analyzer"
+	case viewModels, viewModelsConfirm:
+		m.cfg.LastView = "models"
+	case viewDeps:
+		m.cfg.LastView = "deps"
+	}
+}
+
+// saveAnalyzerFilterPreference persists the current analyzer filter in the
+// config so it can be restored on the next run.
+func (m *Model) saveAnalyzerFilterPreference() {
+	if m.cfg == nil {
+		return
+	}
+	m.cfg.AnalyzerFilter = string(m.analyzerFilter)
 }
 
 func (m *Model) Init() tea.Cmd {
@@ -246,8 +311,8 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.rebuild()
 		}
 		// Notify the user if the scan took a while.
-		if !m.scanStart.IsZero() {
-			notifications.ScanComplete(time.Since(m.scanStart))
+		if !m.scanStart.IsZero() && m.cfg != nil {
+			notifications.ScanComplete(time.Since(m.scanStart), m.cfg.NotificationsEnabled)
 		}
 	case depsMsg:
 		m.depsRunning = false
@@ -507,6 +572,8 @@ func (m *Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case viewDeps:
 		return m.handleDepsKey(msg)
+	case viewConfirmAction:
+		return m.handleConfirmActionKey(msg)
 	}
 
 	switch msg.String() {
@@ -630,6 +697,72 @@ func (m *Model) handleDockerKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, m.fetchDockerUsage
 	}
 	return m, nil
+}
+
+func (m *Model) handleConfirmActionKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "y":
+		intent := m.pendingAction
+		m.pendingAction = nil
+		if intent == nil {
+			m.view = viewFiles
+			return m, nil
+		}
+		m.view = intent.returnView
+		switch intent.actionType {
+		case "trash":
+			return m, m.trashPaths(intent.paths)
+		case "move":
+			return m, m.movePaths(intent.paths)
+		}
+		return m, nil
+	case "n", "esc":
+		returnView := viewFiles
+		if m.pendingAction != nil {
+			returnView = m.pendingAction.returnView
+		}
+		m.pendingAction = nil
+		m.view = returnView
+		return m, nil
+	case "q", "ctrl+c":
+		return m, tea.Quit
+	}
+	return m, nil
+}
+
+func (m *Model) confirmActionView() string {
+	var b strings.Builder
+	b.WriteString(common.HeaderStyle.Render("Confirm action"))
+	b.WriteString("\n\n")
+
+	if m.pendingAction == nil {
+		b.WriteString("No action pending.\n")
+		b.WriteString("\n" + common.FormatHelpBar(m.width, []string{"[esc] back"}) + "\n")
+		return b.String()
+	}
+
+	intent := m.pendingAction
+	var action string
+	switch intent.actionType {
+	case "trash":
+		action = "Trash"
+	case "move":
+		action = "Move to external"
+	}
+
+	b.WriteString(fmt.Sprintf("%s %d item(s), total size %s\n\n", action, len(intent.paths), analyzer.PrettySize(intent.totalSize)))
+
+	maxPreview := 10
+	for i, p := range intent.paths {
+		if i >= maxPreview {
+			b.WriteString(fmt.Sprintf("... and %d more\n", len(intent.paths)-maxPreview))
+			break
+		}
+		b.WriteString(fmt.Sprintf("  %s\n", common.Truncate(p, m.width-4)))
+	}
+
+	b.WriteString("\n" + common.FormatHelpBar(m.width, []string{"[y] confirm", "[n] cancel"}) + "\n")
+	return b.String()
 }
 
 func (m *Model) handleModelsKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
@@ -825,7 +958,8 @@ func (m *Model) handleAnalyzerKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "d":
 		paths := m.batchAnalyzerPaths()
 		if len(paths) > 0 {
-			return m, m.trashPaths(paths)
+			m.pendingAction = &actionIntent{actionType: "trash", paths: paths, totalSize: m.sizeForPaths(paths), returnView: viewAnalyzer}
+			m.view = viewConfirmAction
 		}
 	}
 	return m, nil
@@ -904,7 +1038,21 @@ func (m *Model) trashSelected() tea.Cmd {
 	if len(paths) == 0 {
 		return nil
 	}
-	return m.trashPaths(paths)
+	m.pendingAction = &actionIntent{actionType: "trash", paths: paths, totalSize: m.sizeForPaths(paths), returnView: viewFiles}
+	m.view = viewConfirmAction
+	return nil
+}
+
+// sizeForPaths sums the recursive size of the given paths by looking them up
+// in the scanned tree.
+func (m *Model) sizeForPaths(paths []string) int64 {
+	var total int64
+	for _, p := range paths {
+		if e := m.findEntryByPath(p); e != nil {
+			total += e.Size
+		}
+	}
+	return total
 }
 
 func (m *Model) trashPaths(paths []string) tea.Cmd {
@@ -926,7 +1074,9 @@ func (m *Model) moveSelected() tea.Cmd {
 	if len(paths) == 0 {
 		return nil
 	}
-	return m.movePaths(paths)
+	m.pendingAction = &actionIntent{actionType: "move", paths: paths, totalSize: m.sizeForPaths(paths), returnView: viewFiles}
+	m.view = viewConfirmAction
+	return nil
 }
 
 func (m *Model) movePaths(paths []string) tea.Cmd {
@@ -1219,6 +1369,8 @@ func (m *Model) View() string {
 		return m.modelsView()
 	case viewDeps:
 		return m.depsView()
+	case viewConfirmAction:
+		return m.confirmActionView()
 	}
 
 	if m.scanning {
@@ -1661,7 +1813,9 @@ func (m *Model) trashMarkedOrSelectedDep() tea.Cmd {
 		}
 		paths = []string{dep.Path}
 	}
-	return m.trashPaths(paths)
+	m.pendingAction = &actionIntent{actionType: "trash", paths: paths, totalSize: m.sizeForPaths(paths), returnView: viewDeps}
+	m.view = viewConfirmAction
+	return nil
 }
 
 func (m *Model) moveMarkedOrSelectedDep() tea.Cmd {
@@ -1676,7 +1830,9 @@ func (m *Model) moveMarkedOrSelectedDep() tea.Cmd {
 		}
 		paths = []string{dep.Path}
 	}
-	return m.movePaths(paths)
+	m.pendingAction = &actionIntent{actionType: "move", paths: paths, totalSize: m.sizeForPaths(paths), returnView: viewDeps}
+	m.view = viewConfirmAction
+	return nil
 }
 
 func (m *Model) depsMarkedPaths() []string {
@@ -1721,20 +1877,23 @@ func categoryLabel(item *analyzer.Entry) string {
 }
 
 // Run starts the TUI with the given root entries.
-func Run(roots []*analyzer.Entry, externalDir string, dockerClient docker.Client, dupMode analyzer.DupHashMode, progressInterval int) error {
-	m := New(roots, externalDir, false, dockerClient, dupMode, progressInterval)
+func Run(roots []*analyzer.Entry, externalDir string, dockerClient docker.Client, dupMode analyzer.DupHashMode, progressInterval int, cfg *config.Config) error {
+	m := New(roots, externalDir, false, dockerClient, dupMode, progressInterval, cfg)
 	p := tea.NewProgram(m, tea.WithMouseCellMotion())
 	if _, err := p.Run(); err != nil {
 		return err
+	}
+	if cfg != nil {
+		return cfg.Save()
 	}
 	return nil
 }
 
 // RunWithScan starts the TUI and scans the given paths in the background.
-func RunWithScan(paths []string, ignore []string, ignoreHidden bool, externalDir string, dockerClient docker.Client, dupMode analyzer.DupHashMode, progressInterval int) error {
+func RunWithScan(paths []string, ignore []string, ignoreHidden bool, externalDir string, dockerClient docker.Client, dupMode analyzer.DupHashMode, progressInterval int, cfg *config.Config) error {
 	_ = recent.Save(paths)
 	ctx, cancel := context.WithCancel(context.Background())
-	m := New(nil, externalDir, true, dockerClient, dupMode, progressInterval)
+	m := New(nil, externalDir, true, dockerClient, dupMode, progressInterval, cfg)
 	m.ignoreHidden = ignoreHidden
 	m.ignorePaths = ignore
 	m.scanPaths = paths

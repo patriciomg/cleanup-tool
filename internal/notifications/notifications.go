@@ -19,9 +19,9 @@ func Notify(title, body string) {
 }
 
 // ScanComplete notifies the user that a scan finished. If the scan took 5s or
-// less, no notification is shown.
-func ScanComplete(elapsed time.Duration) {
-	if elapsed <= 5*time.Second {
+// less, or if notifications are disabled, no notification is shown.
+func ScanComplete(elapsed time.Duration, enabled bool) {
+	if !enabled || elapsed <= 5*time.Second {
 		return
 	}
 	Notify("cleanup-tool", fmt.Sprintf("Scan finished in %s", elapsed.Round(time.Second)))
