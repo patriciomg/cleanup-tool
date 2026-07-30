@@ -58,6 +58,24 @@ jobs:
           go_dir="${go_bin%/*}"
           PATH="$go_dir" go test ./internal/actions/...
 
+  test-actions-osascript:
+    name: Test real osascript on macOS
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Run actions integration tests with real osascript
+        env:
+          TEST_REAL_OSASCRIPT: "1"
+        run: go test ./internal/actions/... -v -run TestIntegration
+
   test-docker-mock:
     name: Test docker package with mock Docker daemon
     runs-on: ${{ matrix.os }}

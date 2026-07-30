@@ -704,6 +704,62 @@ func TestTrashWithDestFallbackSameNamedFiles(t *testing.T) {
 	}
 }
 
+func TestIntegrationTrashRealOsascript(t *testing.T) {
+	if os.Getenv("TEST_REAL_OSASCRIPT") == "" {
+		t.Skip("Skipping real osascript integration tests; set TEST_REAL_OSASCRIPT=1 to run")
+	}
+
+	// Finder may not be responsive in headless CI environments. Ping it first.
+	if err := exec.Command("osascript", "-e", "tell application \"Finder\" to get version").Run(); err != nil {
+		t.Skipf("Finder is not responding to osascript in this environment: %v", err)
+	}
+
+	// Use a unique basename so we can locate the item in Trash without
+	// interfering with anything else and clean it up afterwards.
+	base := fmt.Sprintf("cleanup-tool-test-%d", time.Now().UnixNano())
+	src := filepath.Join(t.TempDir(), base)
+	writeFile(t, src, "real-trash-test")
+
+	dests, err := TrashWithDestWithOsascript("osascript", src)
+	if err != nil {
+		t.Fatalf("TrashWithDestWithOsascript failed: %v", err)
+	}
+	if len(dests) != 1 {
+		t.Fatalf("expected 1 destination, got %d", len(dests))
+	}
+
+	// Verify the item is in the boot-volume Trash and matches the original.
+	trashPath := dests[0]
+	if _, err := os.Stat(trashPath); err != nil {
+		t.Fatalf("expected trashed item to exist at %s: %v", trashPath, err)
+	}
+	if readFile(t, trashPath) != "real-trash-test" {
+		t.Fatalf("expected trashed item to preserve its content")
+	}
+	// Defensive cleanup: if the test fails before undo, remove the item from
+	// the real Trash so we do not pollute the CI runner.
+	t.Cleanup(func() {
+		_ = os.RemoveAll(trashPath)
+	})
+
+	// Undo restores the item to its original path and removes it from Trash.
+	op := undo.Operation{
+		Type: undo.OpTrash,
+		Items: []undo.Item{
+			{Original: src, Dest: trashPath},
+		},
+	}
+	if err := Undo(op); err != nil {
+		t.Fatalf("Undo failed: %v", err)
+	}
+	if _, err := os.Stat(trashPath); !os.IsNotExist(err) {
+		t.Fatalf("expected trashed item to be removed from Trash after undo")
+	}
+	if readFile(t, src) != "real-trash-test" {
+		t.Fatalf("expected original item to be restored")
+	}
+}
+
 func TestUndoWithRsyncMissing(t *testing.T) {
 	origRename := moveBackRename
 	moveBackRename = func(_, _ string) error { return fmt.Errorf("cross-device") }
