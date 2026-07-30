@@ -1309,7 +1309,7 @@ go build -o cleanup-tool ./cmd/cleanup-tool
 ./cleanup-tool -h 2>&1 | sed 's/^Usage of .*:$/Usage of <binary>:/' > testdata/help-snapshot.txt
 ```
 
-Then commit both the snapshot and any corresponding README changes.
+The snapshot is the canonical reference for the help text; update the CLI flags table in README.md to match it, then commit both files together.
 
 ## License
 
