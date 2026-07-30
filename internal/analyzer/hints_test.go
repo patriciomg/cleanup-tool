@@ -73,6 +73,42 @@ func TestFindHintsWithOptions_DuplicateModes(t *testing.T) {
 	}
 }
 
+func TestFindHintsWithOptions_DupHashNoneSkipsDuplicates(t *testing.T) {
+	tmp := t.TempDir()
+	data := "duplicate content"
+	a := writeFile(t, tmp, "a.txt", data)
+	b := writeFile(t, tmp, "b.txt", data)
+
+	fileA := entryFor(a, int64(len(data)))
+	fileB := entryFor(b, int64(len(data)))
+	now := time.Now()
+	fileA.AccessTime = now
+	fileA.ModTime = now
+	fileB.AccessTime = now
+	fileB.ModTime = now
+
+	root := &Entry{
+		Path:       tmp,
+		Name:       "tmp",
+		IsDir:      true,
+		AccessTime: time.Now(),
+		Children:   []*Entry{fileA, fileB},
+	}
+
+	hints, err := FindHintsWithOptions(context.Background(), root, HintOptions{DupMode: DupHashNone})
+	if err != nil {
+		t.Fatalf("FindHintsWithOptions: %v", err)
+	}
+	for _, h := range hints {
+		if h.Reason == ReasonDuplicate {
+			t.Fatalf("DupHashNone should not produce duplicate hints, got %+v", h)
+		}
+	}
+	if len(hints) != 0 {
+		t.Fatalf("DupHashNone should not produce any hints, got %d", len(hints))
+	}
+}
+
 func TestFindHintsWithOptions_NoFalsePositives(t *testing.T) {
 	tmp := t.TempDir()
 	a := writeFile(t, tmp, "a.txt", "first file content")
