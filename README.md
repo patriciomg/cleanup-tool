@@ -28,6 +28,7 @@ A fast, terminal-based disk cleanup tool tailored for macOS developers who work 
 - [Saved rules](#saved-rules)
 - [Scheduling rules with launchd](#scheduling-rules-with-launchd)
 - [Docker disk usage](#docker-disk-usage)
+- [Benchmark mode](#benchmark-mode)
 - [Configuration file](#configuration-file)
 - [Key bindings](#key-bindings)
 - [Demo](#demo)
@@ -638,6 +639,61 @@ Select Images → Enter → press D
 - **Running containers are protected.** You must stop or remove a running container before its image can be freed.
 - **Volumes used by containers are shown as in-use.** Delete the container first if you really want to reclaim the volume.
 - **Volumes report `0 B` size** in the per-item list because `docker volume ls` does not return size; only the summary row shows volume size from `docker system df`.
+
+## Benchmark mode
+
+Use `-benchmark` to run a non-interactive scan and print throughput statistics. This is useful for measuring raw scan performance, comparing before/after tuning `ignore_paths`, or verifying that a network/external drive is not slowing things down.
+
+### Examples
+
+```bash
+# Benchmark the default home directory scan
+./cleanup-tool -benchmark
+
+# Benchmark a specific path
+./cleanup-tool -benchmark -paths ~/Downloads
+
+# Benchmark with hidden files skipped
+./cleanup-tool -benchmark -paths ~/Documents -ignore-hidden
+```
+
+### Sample output
+
+```bash
+./cleanup-tool -benchmark -paths /tmp/cleanup-benchmark-sample
+```
+
+```
+Scan benchmark
+Paths: /tmp/cleanup-benchmark-sample
+Total time: 4ms
+Files: 200
+Dirs:  11
+Avg throughput: 56016 files/sec, 3081 dirs/sec
+Total size: 200.0 KB
+```
+
+### Interpreting the stats
+
+| Stat | Meaning |
+|------|---------|
+| `Total time` | How long the scan took from start to finish. |
+| `Files` / `Dirs` | Number of files and directories scanned. The directory count includes each scanned root. |
+| `Avg throughput` | Average files and directories processed per second. Higher is better. These numbers are most meaningful on large, local directories. |
+| `Total size` | Total logical size of everything under the scanned paths. |
+
+### When benchmark numbers are misleading
+
+- **Small directories** (a few files) finish in milliseconds, so the "per second" rate can look artificially high or low due to startup overhead.
+- **Network drives** and **external SSDs** usually show lower throughput than the internal drive.
+- **Hot vs. cold filesystem caches** can cause big differences between back-to-back runs. For a fair comparison, run the benchmark twice and use the second run, or drop caches between runs (on macOS: `sync && sudo purge`).
+- **Counting directories** includes the root path itself, so a directory with only files still shows at least one directory.
+
+### Common use cases
+
+- **Compare scan settings** — run `-benchmark` before and after adding paths to `ignore_paths` to see the speedup.
+- **Validate hardware changes** — compare throughput after switching from a spinning disk to an SSD or after moving a project to an external drive.
+- **Troubleshoot slow scans** — if the TUI feels sluggish, `-benchmark` tells you whether the scanner or the analyzer is the bottleneck.
 
 ## Configuration file
 
