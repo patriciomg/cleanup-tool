@@ -325,7 +325,7 @@ Example `~/.config/cleanup-tool/config.json`:
 
 ```json
 {
-  "version": 1,
+  "version": 2,
   "ignore_paths": [
     "/System",
     "/Volumes",
@@ -337,7 +337,26 @@ Example `~/.config/cleanup-tool/config.json`:
   "ignore_hidden": false,
   "trash_only": true,
   "dup_mode": "smart",
-  "progress_interval": 100
+  "progress_interval": 100,
+  "deps_targets": [
+    "node_modules",
+    ".pnpm",
+    "vendor",
+    ".venv",
+    "venv",
+    "bower_components",
+    "Pods",
+    "Carthage",
+    ".gradle",
+    ".m2",
+    "target",
+    ".tox",
+    "packages",
+    ".nuget",
+    ".stack-work",
+    "elm-stuff",
+    "_build"
+  ]
 }
 ```
 
@@ -345,12 +364,27 @@ Example `~/.config/cleanup-tool/config.json`:
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `version` | int | Config schema version (currently `1`) |
+| `version` | int | Config schema version (currently `2`) |
 | `ignore_paths` | list of strings | Absolute paths to skip during scans |
 | `ignore_hidden` | bool | Skip hidden files and directories by default |
 | `trash_only` | bool | **Reserved**: currently not enforced by the CLI |
 | `dup_mode` | string | Default duplicate-detection mode: `first10mb`, `sample`, `full`, `smart` |
 | `progress_interval` | int | Report scan/analyzer progress every N items |
+| `deps_targets` | list of strings | Dependency directory names used by the `deps` subcommand when `-targets` is not provided |
+
+The `deps` subcommand uses `deps_targets` from the config when you do not pass `-targets` explicitly. If `deps_targets` is missing from the config, the built-in defaults are used.
+
+For example, the command below scans for the directories listed in the config:
+
+```bash
+./cleanup-tool deps -paths ~/projects
+```
+
+You can always override the configured list for a single run:
+
+```bash
+./cleanup-tool deps -paths ~/projects -targets node_modules,vendor
+```
 
 ## Key bindings
 
