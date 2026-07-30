@@ -192,9 +192,9 @@ The `deps` subcommand finds dependency directories — such as `node_modules`, `
 
 ```
 PATH                                              TYPE         SIZE    LAST ACCESS      LAST MODIFIED
-/Users/dev/projects/app/node_modules              node_modules 1.2 GB  5 min ago        2024-06-01 09:15
-/Users/dev/projects/api/vendor                    vendor       450 MB  2 hr ago         2024-08-20 16:40
-/Users/dev/projects/ios/Pods                      Pods         120 MB  3 days ago       2024-11-11 08:20
+/Users/dev/projects/app/node_modules              node_modules 1.2 GB  2024-06-10 14:32  2024-06-01 09:15
+/Users/dev/projects/api/vendor                    vendor       450 MB  2024-08-22 11:05  2024-08-20 16:40
+/Users/dev/projects/ios/Pods                      Pods         120 MB  2024-11-12 08:20  2024-11-11 08:20
 
 Found 3 dependency directories, total size 1.66 GB
 ```
