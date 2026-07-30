@@ -406,6 +406,29 @@ func TestAgeTime(t *testing.T) {
 	}
 }
 
+func BenchmarkAgeTime(b *testing.B) {
+	now := time.Now()
+	cases := []struct {
+		name string
+		e    Entry
+	}{
+		{"bothNonZero", Entry{AccessTime: now, ModTime: now.Add(-time.Hour)}},
+		{"accessZero", Entry{AccessTime: time.Time{}, ModTime: now}},
+		{"modZero", Entry{AccessTime: now, ModTime: time.Time{}}},
+		{"bothZero", Entry{AccessTime: time.Time{}, ModTime: time.Time{}}},
+	}
+
+	for _, tc := range cases {
+		tc := tc
+		b.Run(tc.name, func(b *testing.B) {
+			b.ReportAllocs()
+			for i := 0; i < b.N; i++ {
+				_ = ageTime(&tc.e)
+			}
+		})
+	}
+}
+
 func TestSummarizeHints(t *testing.T) {
 	hints := []*DeletabilityHint{
 		{Entry: &Entry{Path: "/old/1"}, Reason: ReasonOld},
