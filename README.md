@@ -1,6 +1,7 @@
 # cleanup-tool
 
 [![CI](https://github.com/patriciomg/cleanup-tool/actions/workflows/ci.yml/badge.svg)](https://github.com/patriciomg/cleanup-tool/actions/workflows/ci.yml)
+[![Benchmark format](https://img.shields.io/github/actions/workflow/status/patriciomg/cleanup-tool/ci.yml?job=test-benchmark-format&label=benchmark%20format&logo=github)](https://github.com/patriciomg/cleanup-tool/actions/workflows/ci.yml)
 [![Go Version](https://img.shields.io/github/go-mod/go-version/patriciomg/cleanup-tool)](https://github.com/patriciomg/cleanup-tool/blob/main/go.mod)
 [![GitHub release](https://img.shields.io/github/v/release/patriciomg/cleanup-tool?logo=github)](https://github.com/patriciomg/cleanup-tool/releases/latest)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
