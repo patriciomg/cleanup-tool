@@ -693,7 +693,7 @@ Total size: 200.0 KB
 
 - **Compare scan settings** — run `-benchmark` before and after adding paths to `ignore_paths` to see the speedup.
 - **Validate hardware changes** — compare throughput after switching from a spinning disk to an SSD or after moving a project to an external drive.
-- **Troubleshoot slow scans** — if the TUI feels sluggish, `-benchmark` tells you whether the scanner or the analyzer is the bottleneck.
+- **Troubleshoot slow scans** — if the TUI feels sluggish, `-benchmark` tells you how fast the scanner is. If the benchmark throughput is low, the scanner (not the analyzer) is likely the bottleneck.
 
 ## Configuration file
 
