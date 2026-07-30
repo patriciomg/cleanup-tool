@@ -31,3 +31,4 @@ cleanup-tool-amd64
 # OS files
 .DS_Store
 Thumbs.db
+agentic-tool.md
