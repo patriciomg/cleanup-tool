@@ -1,0 +1,11 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Read the README
+    url: https://github.com/patriciomg/cleanup-tool/blob/main/README.md
+    about: Find usage examples, install instructions, and feature documentation.
+  - name: Read CONTRIBUTING.md
+    url: https://github.com/patriciomg/cleanup-tool/blob/main/CONTRIBUTING.md
+    about: Learn about development setup, conventions, and the PR workflow.
+  - name: Ask a question
+    url: https://github.com/patriciomg/cleanup-tool/discussions
+    about: Use GitHub Discussions for questions that are not bug reports or feature requests.

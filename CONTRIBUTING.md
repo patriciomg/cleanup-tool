@@ -203,7 +203,9 @@ Do not commit release binaries or tags manually unless you have configured GPG s
 
 ## Getting help
 
-- Open an issue for bugs, feature requests, or questions.
+- Open an issue for bugs, feature requests, or questions. Use the appropriate template when possible:
+  - **Bug report**: for crashes, incorrect behavior, or other problems.
+  - **Feature request**: for enhancements or new capabilities.
 - Check the [README](README.md) for usage and configuration docs.
 - Review the [release notes](https://github.com/patriciomg/cleanup-tool/releases) for recent changes.
 
