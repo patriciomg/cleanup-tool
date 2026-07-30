@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"testing"
 	"time"
 
@@ -756,6 +757,84 @@ func TestIntegrationTrashRealOsascript(t *testing.T) {
 		t.Fatalf("expected trashed item to be removed from Trash after undo")
 	}
 	if readFile(t, src) != "real-trash-test" {
+		t.Fatalf("expected original item to be restored")
+	}
+}
+
+func TestIntegrationTrashExternalVolume(t *testing.T) {
+	if os.Getenv("TEST_REAL_OSASCRIPT") == "" {
+		t.Skip("Skipping real osascript integration tests; set TEST_REAL_OSASCRIPT=1 to run")
+	}
+	if _, err := exec.LookPath("hdiutil"); err != nil {
+		t.Skip("hdiutil not available, skipping external volume test")
+	}
+	if err := exec.Command("osascript", "-e", "tell application \"Finder\" to get version").Run(); err != nil {
+		t.Skipf("Finder is not responding to osascript in this environment: %v", err)
+	}
+
+	volName := fmt.Sprintf("CleanupTestVol%d", time.Now().UnixNano())
+	dmgPath := filepath.Join(t.TempDir(), "testvol.dmg")
+	mountPoint := filepath.Join("/Volumes", volName)
+
+	// Create a small external volume image.
+	cmd := exec.Command("hdiutil", "create", "-size", "50m", "-fs", "HFS+", "-volname", volName, dmgPath)
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("hdiutil create failed: %v\n%s", err, string(out))
+	}
+
+	// Mount it.
+	cmd = exec.Command("hdiutil", "attach", dmgPath, "-quiet")
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("hdiutil attach failed: %v\n%s", err, string(out))
+	}
+
+	var trashPath string
+	t.Cleanup(func() {
+		_ = os.RemoveAll(trashPath)
+		_ = exec.Command("hdiutil", "detach", mountPoint, "-force").Run()
+	})
+
+	// Give Finder a moment to recognize the new volume.
+	time.Sleep(1 * time.Second)
+
+	base := fmt.Sprintf("ext-trash-test-%d.txt", time.Now().UnixNano())
+	src := filepath.Join(mountPoint, base)
+	writeFile(t, src, "external-volume-data")
+
+	dests, err := TrashWithDestWithOsascript("osascript", src)
+	if err != nil {
+		t.Fatalf("TrashWithDestWithOsascript failed: %v", err)
+	}
+	if len(dests) != 1 {
+		t.Fatalf("expected 1 destination, got %d", len(dests))
+	}
+
+	trashPath = dests[0]
+	expectedTrashDir := filepath.Join(mountPoint, ".Trashes", strconv.Itoa(osGetuid()))
+	if filepath.Dir(trashPath) != expectedTrashDir {
+		t.Fatalf("expected trash path in %s, got %s", expectedTrashDir, trashPath)
+	}
+	if _, err := os.Stat(trashPath); err != nil {
+		t.Fatalf("expected trashed item to exist at %s: %v", trashPath, err)
+	}
+	if readFile(t, trashPath) != "external-volume-data" {
+		t.Fatalf("expected trashed item to preserve its content")
+	}
+
+	// Un-trash the file.
+	op := undo.Operation{
+		Type: undo.OpTrash,
+		Items: []undo.Item{
+			{Original: src, Dest: trashPath},
+		},
+	}
+	if err := Undo(op); err != nil {
+		t.Fatalf("Undo failed: %v", err)
+	}
+	if _, err := os.Stat(trashPath); !os.IsNotExist(err) {
+		t.Fatalf("expected trashed item to be removed from Trash after undo")
+	}
+	if readFile(t, src) != "external-volume-data" {
 		t.Fatalf("expected original item to be restored")
 	}
 }
