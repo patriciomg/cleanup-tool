@@ -8,6 +8,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Homebrew Tap](https://img.shields.io/badge/homebrew-patriciomg%2Fcleanup--tool-2e4053?logo=homebrew)](https://github.com/patriciomg/homebrew-cleanup-tool)
 [![Contributing](https://img.shields.io/badge/Contributing-Welcome-brightgreen)](CONTRIBUTING.md)
+[![GitHub Stars](https://img.shields.io/github/stars/patriciomg/cleanup-tool?logo=github)](https://github.com/patriciomg/cleanup-tool)
 
 A fast, terminal-based disk cleanup tool tailored for macOS developers who work with Docker, LLMs, and build artifacts. It opens into a flat, size-sorted **dua-style** interactive file browser by default; switch to the classic terminal-style tree view with `-tui-style terminal`.
 
