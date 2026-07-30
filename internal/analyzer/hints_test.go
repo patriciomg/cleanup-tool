@@ -236,6 +236,42 @@ func TestSmartMode_FullHashFallbackAvoidsFalsePositive(t *testing.T) {
 	}
 }
 
+func TestFindHintsWithOptions_EmptyRoot(t *testing.T) {
+	root := &Entry{Path: "/empty", Name: "empty", IsDir: true, AccessTime: time.Now()}
+	hints, err := FindHintsWithOptions(context.Background(), root, HintOptions{DupMode: DupHashSmart})
+	if err != nil {
+		t.Fatalf("FindHintsWithOptions: %v", err)
+	}
+	if len(hints) != 0 {
+		t.Fatalf("expected no hints for empty root, got %d", len(hints))
+	}
+}
+
+func TestFindHintsWithOptions_SingleFile(t *testing.T) {
+	tmp := t.TempDir()
+	p := writeFile(t, tmp, "file.txt", "data")
+
+	file := entryFor(p, int64(len("data")))
+	file.AccessTime = time.Now()
+	file.ModTime = time.Now()
+
+	root := &Entry{
+		Path:       tmp,
+		Name:       "tmp",
+		IsDir:      true,
+		AccessTime: time.Now(),
+		Children:   []*Entry{file},
+	}
+
+	hints, err := FindHintsWithOptions(context.Background(), root, HintOptions{DupMode: DupHashSmart})
+	if err != nil {
+		t.Fatalf("FindHintsWithOptions: %v", err)
+	}
+	if len(hints) != 0 {
+		t.Fatalf("expected no hints for a single recent file, got %d", len(hints))
+	}
+}
+
 func TestFindHintsWithOptions_Cancellation(t *testing.T) {
 	tmp := t.TempDir()
 	data := "duplicate me"
