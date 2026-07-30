@@ -80,14 +80,31 @@ func Pluralize(n int, singular, plural string) string {
 	return plural
 }
 
-// SortTree recursively sorts every directory's children by descending size.
-func SortTree(entries []*analyzer.Entry) {
+// SortTree recursively sorts every directory's children according to order.
+// Supported orders values are "size" (default), "name", "access", and
+// "modified".
+func SortTree(entries []*analyzer.Entry, order string) {
 	for _, e := range entries {
 		if e.IsDir && len(e.Children) > 0 {
-			sort.Slice(e.Children, func(i, j int) bool {
-				return e.Children[i].Size > e.Children[j].Size
-			})
-			SortTree(e.Children)
+			switch order {
+			case "name":
+				sort.Slice(e.Children, func(i, j int) bool {
+					return strings.ToLower(e.Children[i].Name) < strings.ToLower(e.Children[j].Name)
+				})
+			case "access":
+				sort.Slice(e.Children, func(i, j int) bool {
+					return e.Children[i].AccessTime.After(e.Children[j].AccessTime)
+				})
+			case "modified":
+				sort.Slice(e.Children, func(i, j int) bool {
+					return e.Children[i].ModTime.After(e.Children[j].ModTime)
+				})
+			default:
+				sort.Slice(e.Children, func(i, j int) bool {
+					return e.Children[i].Size > e.Children[j].Size
+				})
+			}
+			SortTree(e.Children, order)
 		}
 	}
 }

@@ -7,6 +7,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/patriciomg/cleanup-tool/internal/analyzer"
+	"github.com/patriciomg/cleanup-tool/internal/config"
 	"github.com/patriciomg/cleanup-tool/internal/deps"
 	"github.com/patriciomg/cleanup-tool/internal/docker"
 	"github.com/patriciomg/cleanup-tool/internal/tui/common"
@@ -503,6 +504,66 @@ func TestDockerItemDeleteResetsSelection(t *testing.T) {
 	delCmd()
 	if len(mock.Deleted) != 1 || mock.Deleted[0].ID != "abc" {
 		t.Fatalf("expected mock to record deletion, got %v", mock.Deleted)
+	}
+}
+
+func TestSortOrderPreferenceAppliedFromConfig(t *testing.T) {
+	cfg := &config.Config{SortOrder: "name"}
+	parent := entry("dir", "/dir", 10, true)
+	m := New([]*analyzer.Entry{parent}, "", false, nil, analyzer.DupHashSmart, 100, cfg)
+	if m.sortOrder != "name" {
+		t.Fatalf("expected sortOrder 'name' from config, got %q", m.sortOrder)
+	}
+}
+
+func TestSortOrderDefaultsToSizeInTerminal(t *testing.T) {
+	parent := entry("dir", "/dir", 10, true)
+	m := New([]*analyzer.Entry{parent}, "", false, nil, analyzer.DupHashSmart, 100, nil)
+	if m.sortOrder != "size" {
+		t.Fatalf("expected sortOrder 'size' by default, got %q", m.sortOrder)
+	}
+}
+
+func TestCycleSortOrderInTerminal(t *testing.T) {
+	fileA := entry("a.txt", "/dir/a.txt", 10, false)
+	fileB := entry("b.txt", "/dir/b.txt", 20, false)
+	parent := entry("dir", "/dir", 30, true, fileA, fileB)
+	fileA.Parent = parent
+	fileB.Parent = parent
+
+	m := New([]*analyzer.Entry{parent}, "", false, nil, analyzer.DupHashSmart, 100, nil)
+	if m.sortOrder != "size" {
+		t.Fatalf("expected initial sortOrder 'size', got %q", m.sortOrder)
+	}
+
+	m.handleKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'s'}})
+	if m.sortOrder != "name" {
+		t.Fatalf("expected sortOrder 'name' after cycling, got %q", m.sortOrder)
+	}
+
+	m.handleKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'s'}})
+	if m.sortOrder != "access" {
+		t.Fatalf("expected sortOrder 'access' after cycling, got %q", m.sortOrder)
+	}
+
+	m.handleKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'s'}})
+	if m.sortOrder != "modified" {
+		t.Fatalf("expected sortOrder 'modified' after cycling, got %q", m.sortOrder)
+	}
+
+	m.handleKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'s'}})
+	if m.sortOrder != "size" {
+		t.Fatalf("expected sortOrder 'size' after full cycle, got %q", m.sortOrder)
+	}
+}
+
+func TestSortOrderSavedToConfigInTerminal(t *testing.T) {
+	cfg := &config.Config{}
+	parent := entry("dir", "/dir", 10, true)
+	m := New([]*analyzer.Entry{parent}, "", false, nil, analyzer.DupHashSmart, 100, cfg)
+	m.handleKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'s'}})
+	if cfg.SortOrder != "name" {
+		t.Fatalf("expected cfg.SortOrder 'name' after cycling, got %q", cfg.SortOrder)
 	}
 }
 

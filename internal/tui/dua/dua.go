@@ -100,6 +100,7 @@ type Model struct {
 	scanPaths    []string
 	filter       string
 	filtering    bool
+	sortOrder    string
 	undoStack    *undo.Stack
 	depsList     []*deps.DependencyDir
 	depsSelected int
@@ -159,6 +160,7 @@ func New(scanning bool, externalDir string, dockerClient docker.Client, dupMode 
 		cfg:              cfg,
 	}
 	_ = m.undoStack.Load(config.UndoPath())
+	m.sortOrder = "size"
 	m.applyPreferences()
 	if scanning {
 		m.scanStart = time.Now()
@@ -185,6 +187,11 @@ func (m *Model) applyPreferences() {
 	}
 	if m.cfg.AnalyzerFilter != "" {
 		m.analyzerFilter = analyzer.HintReason(m.cfg.AnalyzerFilter)
+	}
+	if m.cfg.SortOrder != "" {
+		m.sortOrder = m.cfg.SortOrder
+	} else {
+		m.sortOrder = "size"
 	}
 }
 
@@ -362,7 +369,7 @@ func (m *Model) handleScanResult(msg scanMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	m.roots = msg.roots
-	common.SortTree(m.roots)
+	common.SortTree(m.roots, m.sortOrder)
 	if len(m.roots) > 0 {
 		m.current = m.roots[0]
 	}
@@ -518,6 +525,8 @@ func (m *Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.filtering = true
 		m.filter = ""
 		m.rebuild()
+	case "s":
+		m.cycleSortOrder()
 	case "?":
 		m.showHelp = true
 	}
@@ -670,6 +679,31 @@ func (m *Model) saveAnalyzerFilterPreference() {
 		return
 	}
 	m.cfg.AnalyzerFilter = string(m.analyzerFilter)
+}
+
+// saveSortOrderPreference persists the current file browser sort order.
+func (m *Model) saveSortOrderPreference() {
+	if m.cfg == nil {
+		return
+	}
+	m.cfg.SortOrder = m.sortOrder
+}
+
+// cycleSortOrder rotates through the available sort orders and rebuilds the
+// file list so the change is immediately visible.
+func (m *Model) cycleSortOrder() {
+	orders := []string{"size", "name", "access", "modified"}
+	idx := 0
+	for i, o := range orders {
+		if o == m.sortOrder {
+			idx = i
+			break
+		}
+	}
+	idx = (idx + 1) % len(orders)
+	m.sortOrder = orders[idx]
+	m.saveSortOrderPreference()
+	m.rebuild()
 }
 
 func (m *Model) descend() (tea.Model, tea.Cmd) {
@@ -892,7 +926,7 @@ func (m *Model) rebuild() {
 		}
 		children = filtered
 	}
-	m.items = sortedChildren(children)
+	m.items = m.sortedChildren(children)
 	if m.selected >= len(m.items) {
 		if len(m.items) == 0 {
 			m.selected = 0
@@ -902,14 +936,30 @@ func (m *Model) rebuild() {
 	}
 }
 
-// sortedChildren returns children sorted by size. Trashed items are not
-// removed so they can be restored; they are styled differently in the view.
-func sortedChildren(children []*analyzer.Entry) []*analyzer.Entry {
+// sortedChildren returns children sorted according to the model's sortOrder.
+// Trashed items are not removed so they can be restored; they are styled
+// differently in the view.
+func (m *Model) sortedChildren(children []*analyzer.Entry) []*analyzer.Entry {
 	out := make([]*analyzer.Entry, len(children))
 	copy(out, children)
-	sort.Slice(out, func(i, j int) bool {
-		return out[i].Size > out[j].Size
-	})
+	switch m.sortOrder {
+	case "name":
+		sort.Slice(out, func(i, j int) bool {
+			return strings.ToLower(out[i].Name) < strings.ToLower(out[j].Name)
+		})
+	case "access":
+		sort.Slice(out, func(i, j int) bool {
+			return out[i].AccessTime.After(out[j].AccessTime)
+		})
+	case "modified":
+		sort.Slice(out, func(i, j int) bool {
+			return out[i].ModTime.After(out[j].ModTime)
+		})
+	default:
+		sort.Slice(out, func(i, j int) bool {
+			return out[i].Size > out[j].Size
+		})
+	}
 	return out
 }
 
@@ -999,7 +1049,7 @@ func (m *Model) View() string {
 	hints := []string{
 		"[j/k/↓/↑] nav", "[enter/l] descend", "[backspace/h/u] up",
 		"[d] mark", "[x] trash", "[m] move", "[r] restore", "[Z] undo",
-		"[a] analyze dir", "[A] analyze selection", "[P] deps", "[D] Docker", "[M] Models", "[o] recent", "[/] filter", "[c] clear", "[?] help", "[q] quit",
+		"[a] analyze dir", "[A] analyze selection", "[P] deps", "[D] Docker", "[M] Models", "[o] recent", "[/] filter", "[s] sort", "[c] clear", "[?] help", "[q] quit",
 	}
 	b.WriteString("\n" + common.FormatHelpBar(m.width, hints) + "\n")
 	return b.String()
@@ -1031,6 +1081,7 @@ func (m *Model) helpView() string {
 		"  enter/l      descend into directory",
 		"  backspace/h/u/esc  go to parent directory",
 		"  d            mark/unmark selected item",
+		"  s            cycle sort order (size, name, access, modified)",
 		"  x            preview trash for marked items (or selected)",
 		"  m            preview move for marked items (or selected) to external drive",
 		"  r            restore selected item from Trash",

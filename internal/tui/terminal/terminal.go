@@ -92,6 +92,7 @@ type Model struct {
 	scanPaths    []string
 	filter       string
 	filtering    bool
+	sortOrder    string
 	depsList     []*deps.DependencyDir
 	depsSelected int
 	depsErr      error
@@ -214,9 +215,10 @@ func New(roots []*analyzer.Entry, externalDir string, scanning bool, dockerClien
 	if len(roots) > 0 {
 		m.currentDir = roots[0]
 	}
-	common.SortTree(m.roots)
-	m.rebuild()
+	m.sortOrder = "size"
 	m.applyPreferences()
+	common.SortTree(m.roots, m.sortOrder)
+	m.rebuild()
 	if scanning {
 		m.scanStart = time.Now()
 		m.peakFilesPerSec = 0
@@ -244,6 +246,11 @@ func (m *Model) applyPreferences() {
 	}
 	if m.cfg.AnalyzerFilter != "" {
 		m.analyzerFilter = analyzer.HintReason(m.cfg.AnalyzerFilter)
+	}
+	if m.cfg.SortOrder != "" {
+		m.sortOrder = m.cfg.SortOrder
+	} else {
+		m.sortOrder = "size"
 	}
 }
 
@@ -276,6 +283,33 @@ func (m *Model) saveAnalyzerFilterPreference() {
 	m.cfg.AnalyzerFilter = string(m.analyzerFilter)
 }
 
+// saveSortOrderPreference persists the current file browser sort order.
+func (m *Model) saveSortOrderPreference() {
+	if m.cfg == nil {
+		return
+	}
+	m.cfg.SortOrder = m.sortOrder
+}
+
+// cycleSortOrder rotates through the available sort orders, re-sorts the
+// scanned tree, and rebuilds the visible list so the change is immediately
+// visible.
+func (m *Model) cycleSortOrder() {
+	orders := []string{"size", "name", "access", "modified"}
+	idx := 0
+	for i, o := range orders {
+		if o == m.sortOrder {
+			idx = i
+			break
+		}
+	}
+	idx = (idx + 1) % len(orders)
+	m.sortOrder = orders[idx]
+	m.saveSortOrderPreference()
+	common.SortTree(m.roots, m.sortOrder)
+	m.rebuild()
+}
+
 func (m *Model) Init() tea.Cmd {
 	return m.spinner.Tick
 }
@@ -305,7 +339,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.err = msg.Err
 		} else {
 			m.roots = msg.Roots
-			common.SortTree(m.roots)
+			common.SortTree(m.roots, m.sortOrder)
 			if len(m.roots) > 0 {
 				m.currentDir = m.roots[0]
 			}
@@ -662,6 +696,9 @@ func (m *Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.filtering = true
 		m.filter = ""
 		m.rebuild()
+		return m, nil
+	case "s":
+		m.cycleSortOrder()
 		return m, nil
 	}
 	return m, nil
@@ -1433,7 +1470,7 @@ func (m *Model) View() string {
 	hints := []string{
 		"[j/k/down/up] navigate", "[l/enter/right] expand", "[h/esc/left] collapse",
 		"[space] mark", "[c] clear", "[d] trash", "[m] move", "[u] restore", "[Z] undo",
-		"[a] analyze dir", "[A] analyze selection", "[P] deps", "[D] Docker", "[M] Models", "[o] recent", "[/] filter", "[q] quit",
+		"[a] analyze dir", "[A] analyze selection", "[P] deps", "[D] Docker", "[M] Models", "[o] recent", "[/] filter", "[s] sort", "[q] quit",
 	}
 	b.WriteString("\n" + common.FormatHelpBar(m.width, hints) + "\n")
 	if m.msg != "" {

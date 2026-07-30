@@ -8,6 +8,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/patriciomg/cleanup-tool/internal/analyzer"
+	"github.com/patriciomg/cleanup-tool/internal/config"
 	"github.com/patriciomg/cleanup-tool/internal/deps"
 	"github.com/patriciomg/cleanup-tool/internal/docker"
 	"github.com/patriciomg/cleanup-tool/internal/tui/dockeritems"
@@ -278,5 +279,59 @@ func TestFilterModeEscapeClearsFilter(t *testing.T) {
 	}
 	if len(m.items) != 2 {
 		t.Fatalf("expected all 2 items after clearing filter, got %d", len(m.items))
+	}
+}
+
+func TestSortOrderPreferenceAppliedFromConfig(t *testing.T) {
+	cfg := &config.Config{SortOrder: "name"}
+	m := New(false, "", nil, analyzer.DupHashSmart, 100, cfg)
+	if m.sortOrder != "name" {
+		t.Fatalf("expected sortOrder 'name' from config, got %q", m.sortOrder)
+	}
+}
+
+func TestSortOrderDefaultsToSize(t *testing.T) {
+	m := newModel(makeTree())
+	if m.sortOrder != "size" {
+		t.Fatalf("expected sortOrder 'size' by default, got %q", m.sortOrder)
+	}
+}
+
+func TestCycleSortOrderChangesOrdering(t *testing.T) {
+	m := newModel(makeTree())
+	if m.items[0].Path != "/tmp/a" {
+		t.Fatalf("expected size-sorted first item /tmp/a, got %s", m.items[0].Path)
+	}
+
+	m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'s'}})
+	if m.sortOrder != "name" {
+		t.Fatalf("expected sortOrder 'name' after cycling, got %q", m.sortOrder)
+	}
+	if m.items[0].Path != "/tmp/a" {
+		t.Fatalf("expected name-sorted first item /tmp/a, got %s", m.items[0].Path)
+	}
+
+	m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'s'}})
+	if m.sortOrder != "access" {
+		t.Fatalf("expected sortOrder 'access' after cycling, got %q", m.sortOrder)
+	}
+
+	m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'s'}})
+	if m.sortOrder != "modified" {
+		t.Fatalf("expected sortOrder 'modified' after cycling, got %q", m.sortOrder)
+	}
+
+	m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'s'}})
+	if m.sortOrder != "size" {
+		t.Fatalf("expected sortOrder 'size' after full cycle, got %q", m.sortOrder)
+	}
+}
+
+func TestSortOrderSavedToConfig(t *testing.T) {
+	cfg := &config.Config{}
+	m := New(false, "", nil, analyzer.DupHashSmart, 100, cfg)
+	m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'s'}})
+	if cfg.SortOrder != "name" {
+		t.Fatalf("expected cfg.SortOrder 'name' after cycling, got %q", cfg.SortOrder)
 	}
 }
