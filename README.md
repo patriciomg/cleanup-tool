@@ -427,7 +427,7 @@ Example `~/.config/cleanup-tool/config.json`:
 
 The `deps` subcommand uses `deps_targets` from the config when you do not pass `-targets` explicitly. If `deps_targets` is missing from the config, the built-in defaults are used.
 
-If the config file contains invalid JSON, `deps` prints a warning to stderr and falls back to the built-in default targets. Other subcommands may still exit on a broken config, but `deps` is designed to keep working so that `-help` and basic discovery commands continue to function.
+If the config file contains invalid JSON, `deps` prints a warning to stderr and falls back to the built-in default targets. If you pass `-targets` explicitly, that value is still honored even when the config is invalid. Other subcommands may still exit on a broken config, but `deps` is designed to keep working so that `-help` and basic discovery commands continue to function.
 
 For example, the command below scans for the directories listed in the config:
 
