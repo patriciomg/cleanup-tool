@@ -624,6 +624,100 @@ func TestRefreshKeyError(t *testing.T) {
 	}
 }
 
+func TestStatusInfo(t *testing.T) {
+	cases := []struct {
+		name      string
+		item      docker.DockerItem
+		wantLabel string
+	}{
+		{"running container", docker.DockerItem{Type: "container", InUse: true}, "running"},
+		{"exited container", docker.DockerItem{Type: "container", Dangling: true}, "exited"},
+		{"mounted volume", docker.DockerItem{Type: "volume", InUse: true}, "mounted"},
+		{"unmounted volume", docker.DockerItem{Type: "volume", Dangling: true}, "unmounted"},
+		{"in-use image", docker.DockerItem{Type: "image", UsedBy: []string{"web"}}, "in-use"},
+		{"dangling image", docker.DockerItem{Type: "image", Dangling: true}, "dangling"},
+		{"unused image", docker.DockerItem{Type: "image"}, "unused"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			label, _ := statusInfo(c.item)
+			if label != c.wantLabel {
+				t.Errorf("statusInfo() = %q, want %q", label, c.wantLabel)
+			}
+		})
+	}
+}
+
+func TestSafetyText(t *testing.T) {
+	cases := []struct {
+		name    string
+		item    docker.DockerItem
+		wantSub string
+	}{
+		{"running container", docker.DockerItem{Type: "container", InUse: true}, "currently running"},
+		{"exited container", docker.DockerItem{Type: "container", Dangling: true}, "safe to delete"},
+		{"mounted volume", docker.DockerItem{Type: "volume", InUse: true, UsedBy: []string{"c1"}}, "mounted by"},
+		{"unmounted volume", docker.DockerItem{Type: "volume", Dangling: true}, "safe to delete"},
+		{"dangling image", docker.DockerItem{Type: "image", Dangling: true}, "dangling"},
+		{"used image", docker.DockerItem{Type: "image", UsedBy: []string{"web"}}, "used by 1 container"},
+		{"unused image", docker.DockerItem{Type: "image"}, "not currently used"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			got := safetyText(c.item)
+			if !strings.Contains(got, c.wantSub) {
+				t.Errorf("safetyText() = %q, want substring %q", got, c.wantSub)
+			}
+		})
+	}
+}
+
+func TestDetailView(t *testing.T) {
+	m := New(nil, "images", 80, 24)
+	item := docker.DockerItem{
+		Type:      "image",
+		ID:        "abc123",
+		Name:      "my-image",
+		Size:      1024 * 1024,
+		Project:   "myproject",
+		UsedBy:    []string{"web", "db"},
+		Labels:    map[string]string{"key": "value"},
+	}
+	view := m.detailView(item)
+	for _, want := range []string{"my-image", "abc123", "myproject", "Used by", "web, db", "Labels"} {
+		if !strings.Contains(view, want) {
+			t.Errorf("detail view missing %q:\n%s", want, view)
+		}
+	}
+}
+
+func TestProjectDittoInGroupedView(t *testing.T) {
+	m := New(nil, "images", 80, 24)
+	m.items = []docker.DockerItem{
+		{Type: "image", ID: "a", Name: "a", Project: "alpha"},
+		{Type: "image", ID: "b", Name: "b", Project: "alpha"},
+		{Type: "image", ID: "c", Name: "c", Project: "beta"},
+	}
+	m.groupByProject = true
+	view := m.View()
+	if !strings.Contains(view, "↳") {
+		t.Fatal("expected grouped view to show project ditto mark ↳ for repeated project")
+	}
+}
+
+func TestConfirmViewShowsSafety(t *testing.T) {
+	m := New(nil, "images", 80, 24)
+	m.items = []docker.DockerItem{
+		{Type: "image", ID: "d", Name: "dangling", Dangling: true},
+	}
+	m.itemToDelete = &m.items[0]
+	m.confirm = true
+	view := m.View()
+	if !strings.Contains(view, "dangling") {
+		t.Fatal("expected confirmation view to show safety text for dangling image")
+	}
+}
+
 func TestQuitKeyEmitsCloseMsg(t *testing.T) {
 	m := New(nil, "images", 80, 24)
 	m, cmd := tuitest.SendKey(m, 'q')

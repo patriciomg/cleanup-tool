@@ -106,11 +106,13 @@ JSON
     if $has_q && $has_a; then
       echo "c1"
       echo "c2"
+      echo "c3"
       exit 0
     fi
     cat <<'JSON'
-{"ID":"c1","Image":"img1","Names":"/web","Status":"Up 2 hours","CreatedAt":"2024-01-01T00:00:00Z","Size":"10MB"}
+{"ID":"c1","Image":"nginx","Names":"/web","Status":"Up 2 hours","CreatedAt":"2024-01-01T00:00:00Z","Size":"10MB"}
 {"ID":"c2","Image":"img2","Names":"/db","Status":"Exited (0) 3 hours ago","CreatedAt":"2024-01-01T00:00:00Z","Size":"5MB"}
+{"ID":"c3","Image":"nginx:latest","Names":"/api","Status":"Up 1 hour","CreatedAt":"2024-01-01T00:00:00Z","Size":"5MB"}
 JSON
     ;;
 
@@ -126,6 +128,9 @@ JSON
       if [[ "$fmt" == *".Mounts"* ]]; then
         case "$id" in
           c1)
+            echo '[{"Type":"volume","Source":"vol1","Destination":"/data"}]'
+            ;;
+          c3)
             echo '[{"Type":"volume","Source":"vol1","Destination":"/data"}]'
             ;;
           *)

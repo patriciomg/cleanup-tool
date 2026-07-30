@@ -57,6 +57,7 @@ type DockerItem struct {
 	InUse     bool              // True if the resource is currently referenced by a running container.
 	Project   string            // Docker Compose project label, when present.
 	Labels    map[string]string // All labels for diagnostics.
+	UsedBy    []string          // Names of containers referencing this image/volume (best-effort).
 }
 
 // ProjectKey returns the project label key used for grouping.
@@ -219,6 +220,33 @@ type imageRow struct {
 	Size      string `json:"Size"`
 }
 
+// containerRef matches a subset of `docker ps -a --format '{{json .}}'` used
+// to build reverse-lookup maps for Docker items.
+type containerRef struct {
+	ID    string `json:"ID"`
+	Image string `json:"Image"`
+	Names string `json:"Names"`
+}
+
+// containerReferences returns a list of running and stopped containers with
+// just enough information to determine what images/volumes they reference.
+func (r *realClient) containerReferences(ctx context.Context) ([]containerRef, error) {
+	cmd := exec.CommandContext(ctx, "docker", "ps", "-a", "--format", "{{json .}}")
+	out, err := runDockerOutput(ctx, cmd)
+	if err != nil {
+		return nil, err
+	}
+	var refs []containerRef
+	for _, line := range out {
+		var ref containerRef
+		if err := json.Unmarshal([]byte(line), &ref); err != nil {
+			continue
+		}
+		refs = append(refs, ref)
+	}
+	return refs, nil
+}
+
 func (r *realClient) listImages(ctx context.Context) ([]DockerItem, error) {
 	cmd := exec.CommandContext(ctx, "docker", "image", "ls", "--format", "{{json .}}")
 	out, err := runDockerOutput(ctx, cmd)
@@ -228,6 +256,9 @@ func (r *realClient) listImages(ctx context.Context) ([]DockerItem, error) {
 
 	var items []DockerItem
 	var ids []string
+	// refToID maps common image references (ID, repo, repo:tag) to image ID so
+	// that container image names can be resolved back to the actual image.
+	refToID := make(map[string]string)
 	for _, line := range out {
 		var row imageRow
 		if err := json.Unmarshal([]byte(line), &row); err != nil {
@@ -244,6 +275,41 @@ func (r *realClient) listImages(ctx context.Context) ([]DockerItem, error) {
 			Dangling:  row.Repository == "<none>",
 		})
 		ids = append(ids, row.ID)
+
+		// Register every likely way a container may reference this image.
+		refToID[row.ID] = row.ID
+		if row.Repository != "" && row.Repository != "<none>" {
+			refToID[row.Repository] = row.ID
+			if row.Tag != "" && row.Tag != "<none>" {
+				refToID[row.Repository+":"+row.Tag] = row.ID
+				// Docker treats "repo" as "repo:latest" when starting containers.
+				if row.Tag == "latest" {
+					refToID[row.Repository+":latest"] = row.ID
+				}
+			}
+		}
+	}
+
+	// Resolve container image references back to the images we just listed.
+	refs, err := r.containerReferences(ctx)
+	if err == nil {
+		usedBy := make(map[string][]string)
+		for _, ref := range refs {
+			if id, ok := refToID[ref.Image]; ok {
+				usedBy[id] = append(usedBy[id], strings.TrimPrefix(ref.Names, "/"))
+			}
+		}
+		for i := range items {
+			items[i].UsedBy = usedBy[items[i].ID]
+		}
+	}
+
+	// Images that are referenced by at least one container are considered in
+	// use, which helps callers color-code the status correctly.
+	for i := range items {
+		if len(items[i].UsedBy) > 0 {
+			items[i].InUse = true
+		}
 	}
 
 	labels, err := r.bulkLabels(ctx, ids, ".Config.Labels")
@@ -326,13 +392,14 @@ func (r *realClient) listVolumes(ctx context.Context) ([]DockerItem, error) {
 		if err := json.Unmarshal([]byte(line), &row); err != nil {
 			return nil, fmt.Errorf("parse docker volume row: %w", err)
 		}
-		inUse := mounted[row.Name]
+		inUse := len(mounted[row.Name]) > 0
 		items = append(items, DockerItem{
 			Type:     "volume",
 			ID:       row.Name,
 			Name:     row.Name,
 			InUse:    inUse,
 			Dangling: !inUse,
+			UsedBy:   mounted[row.Name],
 			// Volumes report no size from docker volume ls; size must come
 			// from docker system df.
 		})
@@ -353,19 +420,21 @@ type dockerMount struct {
 	Source string `json:"Source"`
 }
 
-// containerMountedVolumes returns the set of volume names that are currently
-// mounted by at least one container. It tolerates a missing Docker daemon and
+// containerMountedVolumes returns a map from volume name to the list of
+// container names that mount it. It tolerates a missing Docker daemon and
 // returns an empty map when no containers exist.
-func (r *realClient) containerMountedVolumes(ctx context.Context) (map[string]bool, error) {
-	idsCmd := exec.CommandContext(ctx, "docker", "ps", "-q", "-a")
-	var idsOut bytes.Buffer
-	idsCmd.Stdout = &idsOut
-	if err := idsCmd.Run(); err != nil {
+func (r *realClient) containerMountedVolumes(ctx context.Context) (map[string][]string, error) {
+	refs, err := r.containerReferences(ctx)
+	if err != nil {
 		return nil, fmt.Errorf("docker ps failed: %w", err)
 	}
-	ids := strings.Fields(idsOut.String())
-	if len(ids) == 0 {
-		return map[string]bool{}, nil
+	if len(refs) == 0 {
+		return map[string][]string{}, nil
+	}
+
+	ids := make([]string, len(refs))
+	for i, ref := range refs {
+		ids[i] = ref.ID
 	}
 
 	args := []string{"inspect", "--format", "{{json .Mounts}}"}
@@ -376,8 +445,12 @@ func (r *realClient) containerMountedVolumes(ctx context.Context) (map[string]bo
 		return nil, err
 	}
 
-	mounted := make(map[string]bool)
-	for _, line := range out {
+	mounted := make(map[string][]string)
+	for i, line := range out {
+		if i >= len(ids) {
+			break
+		}
+		containerName := strings.TrimPrefix(refs[i].Names, "/")
 		var mounts []dockerMount
 		if err := json.Unmarshal([]byte(line), &mounts); err != nil {
 			// Best-effort: ignore unparseable mount lines.
@@ -385,7 +458,7 @@ func (r *realClient) containerMountedVolumes(ctx context.Context) (map[string]bo
 		}
 		for _, m := range mounts {
 			if m.Type == "volume" {
-				mounted[m.Source] = true
+				mounted[m.Source] = append(mounted[m.Source], containerName)
 			}
 		}
 	}

@@ -233,6 +233,12 @@ func TestRealClientListImages(t *testing.T) {
 	if items[0].Project != "myproject" {
 		t.Errorf("expected project label myproject, got %q", items[0].Project)
 	}
+	if len(items[0].UsedBy) != 2 {
+		t.Errorf("expected img1 to be used by 2 containers, got %v", items[0].UsedBy)
+	}
+	if len(items[1].UsedBy) != 1 || items[1].UsedBy[0] != "db" {
+		t.Errorf("expected img2 to be used by container db, got %v", items[1].UsedBy)
+	}
 }
 
 func TestRealClientListContainers(t *testing.T) {
@@ -242,8 +248,8 @@ func TestRealClientListContainers(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ListItems containers error: %v", err)
 	}
-	if len(items) != 2 {
-		t.Fatalf("expected 2 containers, got %d", len(items))
+	if len(items) != 3 {
+		t.Fatalf("expected 3 containers, got %d", len(items))
 	}
 	if items[0].Name != "web" {
 		t.Errorf("expected first container web, got %q", items[0].Name)
@@ -259,6 +265,12 @@ func TestRealClientListContainers(t *testing.T) {
 	}
 	if !items[1].Dangling {
 		t.Error("expected exited container to be dangling")
+	}
+	if items[2].Name != "api" {
+		t.Errorf("expected third container api, got %q", items[2].Name)
+	}
+	if !items[2].InUse {
+		t.Error("expected api to be in use (running)")
 	}
 }
 
@@ -286,6 +298,12 @@ func TestRealClientListVolumes(t *testing.T) {
 	}
 	if !items[1].Dangling {
 		t.Error("expected vol2 to be dangling")
+	}
+	if len(items[0].UsedBy) != 2 {
+		t.Errorf("expected vol1 to be used by 2 containers, got %v", items[0].UsedBy)
+	}
+	if len(items[1].UsedBy) != 0 {
+		t.Errorf("expected vol2 to have no users, got %v", items[1].UsedBy)
 	}
 }
 

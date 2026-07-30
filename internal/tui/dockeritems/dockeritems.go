@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 
 	"github.com/patriciomg/cleanup-tool/internal/analyzer"
 	"github.com/patriciomg/cleanup-tool/internal/docker"
@@ -288,6 +289,66 @@ func (m *Model) removeItem(item docker.DockerItem) {
 	}
 }
 
+// statusInfo returns a human-readable status label and an appropriate style
+// for the given Docker item. The style encodes deletion safety at a glance:
+// green means in-use/keep, red means safe to delete (dangling/stopped), and
+// yellow means unused but named (proceed with caution).
+func statusInfo(it docker.DockerItem) (string, lipgloss.Style) {
+	switch it.Type {
+	case "container":
+		if it.InUse {
+			return "running", common.SizeStyle
+		}
+		if it.Dangling {
+			return "exited", common.DangerStyle
+		}
+		return "unused", common.FilterStyle
+	case "volume":
+		if it.InUse {
+			return "mounted", common.SizeStyle
+		}
+		if it.Dangling {
+			return "unmounted", common.DangerStyle
+		}
+		return "unused", common.FilterStyle
+	case "image":
+		if len(it.UsedBy) > 0 {
+			return "in-use", common.SizeStyle
+		}
+		if it.Dangling {
+			return "dangling", common.DangerStyle
+		}
+		return "unused", common.FilterStyle
+	}
+	return "unknown", common.BarStyle
+}
+
+// safetyText returns a sentence explaining whether it is safe to delete the
+// item and why.
+func safetyText(it docker.DockerItem) string {
+	switch it.Type {
+	case "container":
+		if it.InUse {
+			return "This container is currently running. Stopping and deleting it will terminate the process."
+		}
+		return "This container is stopped/exited and is safe to delete."
+	case "volume":
+		if it.InUse {
+			return fmt.Sprintf("This volume is mounted by %d container(s). Deleting it may break those containers.", len(it.UsedBy))
+		}
+		return "This volume is not mounted by any container and is safe to delete."
+	case "image":
+		if len(it.UsedBy) > 0 {
+			return fmt.Sprintf("This image is used by %d container(s). Deleting it may prevent those containers from restarting.", len(it.UsedBy))
+		}
+		if it.Dangling {
+			return "This image is dangling (untagged/orphaned) and is safe to delete."
+		}
+		return "This image is not currently used by any container, but it may be referenced by name."
+	}
+	return ""
+}
+
 func (m *Model) visibleRangeWithSelected(n, sel int) (int, int) {
 	height := m.height - 6
 	if height < 8 {
@@ -342,18 +403,19 @@ func (m *Model) listView() string {
 
 	b.WriteString(fmt.Sprintf("%-30s %-10s %-10s %-20s %s\n", "Name", "Size", "Status", "Project", "ID"))
 	start, end := m.visibleRangeWithSelected(len(items), m.selected)
+	prevProject := ""
+	if start > 0 {
+		prevProject = items[start-1].ProjectKey()
+	}
 	for i := start; i < end && i < len(items); i++ {
 		it := items[i]
-		status := "used"
-		if it.InUse {
-			status = "running"
-		} else if it.Dangling {
-			status = "dangling"
+		status, statusStyle := statusInfo(it)
+		project := it.ProjectKey()
+		projectDisplay := project
+		if m.groupByProject && project == prevProject {
+			projectDisplay = "  ↳"
 		}
-		project := it.Project
-		if project == "" {
-			project = "-"
-		}
+		prevProject = project
 		size := analyzer.PrettySize(it.Size)
 		if it.Type == "volume" && it.Size == 0 {
 			size = "-"
@@ -361,8 +423,8 @@ func (m *Model) listView() string {
 		line := fmt.Sprintf("%-30s %-10s %-10s %-20s %s",
 			common.Truncate(it.Name, 29),
 			size,
-			status,
-			common.Truncate(project, 19),
+			statusStyle.Render(status),
+			common.Truncate(projectDisplay, 19),
 			common.Truncate(it.ID, 12),
 		)
 		if i == m.selected {
@@ -374,8 +436,37 @@ func (m *Model) listView() string {
 	if m.msg != "" {
 		b.WriteString("\n" + m.msg + "\n")
 	}
+
+	// Passive details panel for the currently selected item.
+	if len(items) > 0 && m.selected < len(items) {
+		b.WriteString(m.detailView(items[m.selected]))
+	}
+
 	hints := []string{"[↑/↓/j/k] nav", "[d] delete item", "[D] delete all dangling", "[f] filter", "[g] group", "[r] refresh", "[esc] back", "[q] quit"}
 	b.WriteString("\n" + common.FormatHelpBar(m.width, hints) + "\n")
+	return b.String()
+}
+
+func (m *Model) detailView(it docker.DockerItem) string {
+	var b strings.Builder
+	b.WriteString(common.BarStyle.Render(strings.Repeat("─", m.width)) + "\n")
+	b.WriteString(fmt.Sprintf("Details:  %s\n", common.HeaderStyle.Render(common.Truncate(it.Name, m.width-10))))
+	b.WriteString(fmt.Sprintf("ID:       %s\n", common.Truncate(it.ID, m.width-10)))
+	status, _ := statusInfo(it)
+	b.WriteString(fmt.Sprintf("Status:   %s\n", status))
+	if !it.CreatedAt.IsZero() {
+		b.WriteString(fmt.Sprintf("Created:  %s\n", it.CreatedAt.Local().Format("2006-01-02 15:04:05")))
+	}
+	b.WriteString(fmt.Sprintf("Project:  %s\n", it.ProjectKey()))
+	if it.Size > 0 {
+		b.WriteString(fmt.Sprintf("Size:     %s\n", analyzer.PrettySize(it.Size)))
+	}
+	if len(it.UsedBy) > 0 {
+		b.WriteString(fmt.Sprintf("Used by:  %s\n", common.Truncate(strings.Join(it.UsedBy, ", "), m.width-10)))
+	}
+	if len(it.Labels) > 0 {
+		b.WriteString(fmt.Sprintf("Labels:   %d\n", len(it.Labels)))
+	}
 	return b.String()
 }
 
@@ -392,6 +483,7 @@ func (m *Model) confirmView() string {
 
 	it := *m.itemToDelete
 	b.WriteString(fmt.Sprintf("Delete %s %s (%s)? This cannot be undone.\n\n", it.Type, it.Name, analyzer.PrettySize(it.Size)))
+	b.WriteString(common.DangerStyle.Render("Safety: ") + safetyText(it) + "\n\n")
 	b.WriteString(common.FormatHelpBar(m.width, []string{"[y] yes", "[n] no"}) + "\n")
 	return b.String()
 }
