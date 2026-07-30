@@ -94,7 +94,7 @@ func ExecuteRule(ctx context.Context, rule rules.Rule, opts Options) Result {
 	ignorePaths := utils.ExpandHomeSlice(cfg.IgnorePaths)
 	ignorePaths = append(ignorePaths, utils.ExpandHomeSlice(rule.IgnorePaths)...)
 
-	scanner := analyzer.NewScanner(ignorePaths, rule.IgnoreHidden, 0)
+	scanner := analyzer.NewScanner(ignorePaths, rule.IgnoreHidden, 0, false)
 	roots, err := scanner.Scan(ctx, paths)
 	if err != nil {
 		res.Error = fmt.Errorf("scan: %w", err)

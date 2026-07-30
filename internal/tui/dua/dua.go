@@ -1871,7 +1871,7 @@ func findEntryByPath(roots []*analyzer.Entry, target string) *analyzer.Entry {
 // RunWithScan starts the dua-style TUI and scans the given paths in the
 // background. progressInterval controls how often scan progress is reported
 // (a value <= 0 disables progress reports).
-func RunWithScan(paths []string, ignore []string, ignoreHidden bool, externalDir string, dockerClient docker.Client, dupMode analyzer.DupHashMode, progressInterval int, cfg *config.Config) error {
+func RunWithScan(paths []string, ignore []string, ignoreHidden bool, includeVCS bool, externalDir string, dockerClient docker.Client, dupMode analyzer.DupHashMode, progressInterval int, cfg *config.Config) error {
 	_ = recent.Save(paths)
 	ctx, cancel := context.WithCancel(context.Background())
 	m := New(true, externalDir, dockerClient, dupMode, progressInterval, cfg)
@@ -1881,7 +1881,7 @@ func RunWithScan(paths []string, ignore []string, ignoreHidden bool, externalDir
 	p := tea.NewProgram(m)
 	go func() {
 		defer cancel()
-		scanner := analyzer.NewScanner(ignore, ignoreHidden, progressInterval)
+		scanner := analyzer.NewScanner(ignore, ignoreHidden, progressInterval, includeVCS)
 		scanner.OnProgress = func(pr analyzer.Progress) {
 			go p.Send(progressMsg{files: pr.Files, dirs: pr.Dirs, path: pr.Path})
 		}

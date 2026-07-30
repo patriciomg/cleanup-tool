@@ -57,6 +57,7 @@ func main() {
 		dupModeFlag      string
 		progressInterval int
 		tuiStyle         string
+		includeVCS       bool
 	)
 
 	ignoreHiddenFlag := &boolFlag{value: cfg.IgnoreHidden}
@@ -74,6 +75,7 @@ func main() {
 	flag.StringVar(&dupModeFlag, "dup-mode", cfg.DupMode, "Duplicate detection mode: first10mb, sample, full, smart")
 	flag.IntVar(&progressInterval, "progress-interval", cfg.ProgressInterval, "Report analyzer progress every N files")
 	flag.StringVar(&tuiStyle, "tui-style", "dua", "Interactive TUI style: terminal or dua")
+	flag.BoolVar(&includeVCS, "vcs", false, "Include VCS directories (.git, .hg, etc.) in scan")
 	flag.Parse()
 
 	ignoreHidden := cfg.IgnoreHidden
@@ -161,7 +163,7 @@ func main() {
 			fmt.Fprintf(os.Stderr, "csv-columns error: %v\n", err)
 			os.Exit(1)
 		}
-		runNonInteractive(paths, cfg.IgnorePaths, ignoreHidden, benchmark, out, json || stdout, format, columns)
+		runNonInteractive(paths, cfg.IgnorePaths, ignoreHidden, includeVCS, benchmark, out, json || stdout, format, columns)
 		return
 	}
 
@@ -174,13 +176,13 @@ func main() {
 	switch style {
 	case "terminal":
 		dockerClient := docker.NewClient()
-		if err := terminal.RunWithScan(paths, cfg.IgnorePaths, ignoreHidden, utils.ExpandHome(externalFlag), dockerClient, dupMode, progressInterval, cfg); err != nil {
+		if err := terminal.RunWithScan(paths, cfg.IgnorePaths, ignoreHidden, includeVCS, utils.ExpandHome(externalFlag), dockerClient, dupMode, progressInterval, cfg); err != nil {
 			fmt.Fprintf(os.Stderr, "terminal error: %v\n", err)
 			os.Exit(1)
 		}
 	case "dua":
 		dockerClient := docker.NewClient()
-		if err := dua.RunWithScan(paths, cfg.IgnorePaths, ignoreHidden, utils.ExpandHome(externalFlag), dockerClient, dupMode, progressInterval, cfg); err != nil {
+		if err := dua.RunWithScan(paths, cfg.IgnorePaths, ignoreHidden, includeVCS, utils.ExpandHome(externalFlag), dockerClient, dupMode, progressInterval, cfg); err != nil {
 			fmt.Fprintf(os.Stderr, "dua error: %v\n", err)
 			os.Exit(1)
 		}
@@ -234,9 +236,9 @@ func parseInterspersed(fs *flag.FlagSet, args []string) ([]string, error) {
 	return positionals, nil
 }
 
-func runNonInteractive(paths []string, ignorePaths []string, ignoreHidden bool, benchmark bool, outFile string, stdout bool, format string, csvColumns []string) {
+func runNonInteractive(paths []string, ignorePaths []string, ignoreHidden bool, includeVCS bool, benchmark bool, outFile string, stdout bool, format string, csvColumns []string) {
 	start := time.Now()
-	scanner := analyzer.NewScanner(ignorePaths, ignoreHidden, 0)
+	scanner := analyzer.NewScanner(ignorePaths, ignoreHidden, 0, includeVCS)
 	roots, err := scanner.Scan(context.Background(), paths)
 	elapsed := time.Since(start)
 	if err != nil {

@@ -27,6 +27,7 @@ type ProgressFunc func(Progress)
 type Scanner struct {
 	IgnorePaths  []string
 	IgnoreHidden bool
+	IncludeVCS   bool
 	OnProgress   ProgressFunc
 	progressStep int
 
@@ -46,14 +47,17 @@ type Scanner struct {
 	statSem chan struct{}
 }
 
-// NewScanner creates a new Scanner.
-func NewScanner(ignore []string, ignoreHidden bool, progressStep int) *Scanner {
+// NewScanner creates a new Scanner. If includeVCS is false (the default),
+// directories used by common version control systems (.git, .hg, .svn, .bzr,
+// _darcs, CVS) are skipped during the walk.
+func NewScanner(ignore []string, ignoreHidden bool, progressStep int, includeVCS bool) *Scanner {
 	if progressStep < 0 {
 		progressStep = 0
 	}
 	s := &Scanner{
 		IgnorePaths:  ignore,
 		IgnoreHidden: ignoreHidden,
+		IncludeVCS:   includeVCS,
 		progressStep: progressStep,
 		readDirSem:   make(chan struct{}, defaultReadDirConcurrency()),
 		statSem:      make(chan struct{}, defaultStatConcurrency()),
@@ -88,12 +92,26 @@ func defaultStatConcurrency() int {
 	return n
 }
 
+// knownVCSDirs lists directory names used by common version control systems.
+// These are skipped by default unless IncludeVCS is true.
+var knownVCSDirs = map[string]bool{
+	".git":  true,
+	".hg":   true,
+	".svn":  true,
+	".bzr":  true,
+	"_darcs": true,
+	"CVS":   true,
+}
+
 func (s *Scanner) shouldSkip(path string, d fs.DirEntry) bool {
 	if s.IgnoreHidden {
 		name := d.Name()
 		if strings.HasPrefix(name, ".") && name != "." && name != ".." {
 			return true
 		}
+	}
+	if !s.IncludeVCS && d.IsDir() && knownVCSDirs[d.Name()] {
+		return true
 	}
 	for _, p := range s.IgnorePaths {
 		if strings.HasPrefix(path, p) {

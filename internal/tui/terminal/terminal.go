@@ -1891,7 +1891,7 @@ func Run(roots []*analyzer.Entry, externalDir string, dockerClient docker.Client
 }
 
 // RunWithScan starts the TUI and scans the given paths in the background.
-func RunWithScan(paths []string, ignore []string, ignoreHidden bool, externalDir string, dockerClient docker.Client, dupMode analyzer.DupHashMode, progressInterval int, cfg *config.Config) error {
+func RunWithScan(paths []string, ignore []string, ignoreHidden bool, includeVCS bool, externalDir string, dockerClient docker.Client, dupMode analyzer.DupHashMode, progressInterval int, cfg *config.Config) error {
 	_ = recent.Save(paths)
 	ctx, cancel := context.WithCancel(context.Background())
 	m := New(nil, externalDir, true, dockerClient, dupMode, progressInterval, cfg)
@@ -1901,7 +1901,7 @@ func RunWithScan(paths []string, ignore []string, ignoreHidden bool, externalDir
 	p := tea.NewProgram(m, tea.WithMouseCellMotion())
 	go func() {
 		defer cancel()
-		scanner := analyzer.NewScanner(ignore, ignoreHidden, progressInterval)
+		scanner := analyzer.NewScanner(ignore, ignoreHidden, progressInterval, includeVCS)
 		scanner.OnProgress = func(pr analyzer.Progress) {
 			// Run progress emission in its own goroutine so the scanner never
 			// stalls waiting for the Bubble Tea event loop. Progress messages

@@ -13,7 +13,7 @@ func TestScannerOnProgress(t *testing.T) {
 	must(t, os.WriteFile(filepath.Join(tmp, "b.txt"), []byte("b"), 0o644))
 
 	var events int
-	scanner := NewScanner(nil, false, 0)
+	scanner := NewScanner(nil, false, 0, false)
 	scanner.progressStep = 1
 	scanner.OnProgress = func(p Progress) {
 		events++
@@ -40,7 +40,7 @@ func TestScannerCancellation(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	scanner := NewScanner(nil, false, 0)
+	scanner := NewScanner(nil, false, 0, false)
 	roots, err := scanner.Scan(ctx, []string{tmp})
 	if err != nil {
 		t.Fatalf("scan failed: %v", err)

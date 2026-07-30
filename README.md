@@ -30,6 +30,7 @@ A fast, terminal-based disk cleanup tool tailored for macOS developers who work 
 - [Development](#development)
 - [Usage](#usage)
 - [CLI flags](#cli-flags)
+- [Version control directories](#version-control-directories)
 - [Dependency directories](#dependency-directories)
 - [Exporting results](#exporting-results)
 - [Saved rules](#saved-rules)
@@ -179,6 +180,9 @@ make watch-test
 # Benchmark scan performance (non-interactive; prints throughput stats)
 ./cleanup-tool -benchmark -paths /tmp
 
+# Include version-control directories (`.git`, `.hg`, `.svn`, etc.) in the scan
+./cleanup-tool -vcs -paths ~/projects
+
 # Create and run a saved rule
 ./cleanup-tool rules create --name logs --paths ~/Library/Logs --action trash --categories log/cache
 ./cleanup-tool rules run logs --dry-run
@@ -201,7 +205,10 @@ make watch-test
 | `-stdout` | Export scan results to stdout (works with any `-format`; non-interactive) | `false` |
 | `-format` | Export format: `json`, `csv`, `tsv`, `yaml`. Defaults to `json`; auto-detected from `-out` extension when omitted. | `json` |
 | `-csv-columns` | Comma-separated CSV/TSV column names | `""` |
-| `-tui-style` | Interactive TUI style: `terminal` or `dua` | `dua` |### `deps` subcommand flags
+| `-tui-style` | Interactive TUI style: `terminal` or `dua` | `dua` |
+| `-vcs` | Include version-control directories (`.git`, `.hg`, `.svn`, etc.) in the scan | `false` |
+
+### `deps` subcommand flags
 
 ```bash
 ./cleanup-tool deps [flags]
@@ -214,6 +221,18 @@ make watch-test
 | `-sort` | Sort results by `size`, `access`, `mod`, or `path` | `size` |
 | `-ignore-hidden` | Skip hidden files and directories | `false` |
 | `-json` | Output results as JSON instead of a table | `false` |
+
+## Version control directories
+
+By default, `cleanup-tool` skips version-control metadata directories such as `.git`, `.hg`, `.svn`, `.bzr`, `_darcs`, and `CVS`. This avoids false-positive duplicate detection inside reflogs and reduces scan noise for projects.
+
+Use the `-vcs` flag to include them if you really want them scanned:
+
+```bash
+./cleanup-tool -vcs -paths ~/projects
+```
+
+Without `-vcs`, these directories are skipped entirely. This is usually what you want when analyzing disk usage or cleaning up build artifacts. Use `-vcs` only when you need to inspect or export repository metadata.
 
 ## Dependency directories
 

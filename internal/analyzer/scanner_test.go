@@ -26,7 +26,7 @@ func TestScannerWalkSizes(t *testing.T) {
 	must(t, os.WriteFile(filepath.Join(bDir, "file2.txt"), []byte("world"), 0o644))
 	must(t, os.WriteFile(filepath.Join(tmp, "top.txt"), []byte("top"), 0o644))
 
-	scanner := NewScanner(nil, false, 0)
+	scanner := NewScanner(nil, false, 0, false)
 	roots, err := scanner.Scan(context.Background(), []string{tmp})
 	if err != nil {
 		t.Fatalf("scan failed: %v", err)
@@ -64,7 +64,7 @@ func TestScannerFollowsSymlink(t *testing.T) {
 	must(t, os.WriteFile(target, []byte("hello"), 0o644))
 	must(t, os.Symlink(target, link))
 
-	scanner := NewScanner(nil, false, 0)
+	scanner := NewScanner(nil, false, 0, false)
 	roots, err := scanner.Scan(context.Background(), []string{tmp})
 	if err != nil {
 		t.Fatalf("scan failed: %v", err)
@@ -93,7 +93,7 @@ func TestScannerFollowsSymlinkToDirectory(t *testing.T) {
 	must(t, os.WriteFile(filepath.Join(aDir, "file.txt"), []byte("world"), 0o644))
 	must(t, os.Symlink(aDir, bLink))
 
-	scanner := NewScanner(nil, false, 0)
+	scanner := NewScanner(nil, false, 0, false)
 	roots, err := scanner.Scan(context.Background(), []string{tmp})
 	if err != nil {
 		t.Fatalf("scan failed: %v", err)
@@ -119,7 +119,7 @@ func TestScannerBrokenSymlink(t *testing.T) {
 	link := filepath.Join(tmp, "broken")
 	must(t, os.Symlink(filepath.Join(tmp, "missing"), link))
 
-	scanner := NewScanner(nil, false, 0)
+	scanner := NewScanner(nil, false, 0, false)
 	roots, err := scanner.Scan(context.Background(), []string{tmp})
 	if err != nil {
 		t.Fatalf("scan failed: %v", err)
@@ -147,5 +147,59 @@ func must(t *testing.T, err error) {
 	t.Helper()
 	if err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestScannerSkipsVCSDirectoriesByDefault(t *testing.T) {
+	tmp := t.TempDir()
+
+	repoDir := filepath.Join(tmp, "repo")
+	gitDir := filepath.Join(repoDir, ".git")
+	must(t, os.MkdirAll(gitDir, 0o755))
+	must(t, os.WriteFile(filepath.Join(gitDir, "HEAD"), []byte("ref: refs/heads/main\n"), 0o644))
+	must(t, os.WriteFile(filepath.Join(repoDir, "file.txt"), []byte("hello"), 0o644))
+
+	scanner := NewScanner(nil, false, 0, false)
+	roots, err := scanner.Scan(context.Background(), []string{repoDir})
+	if err != nil {
+		t.Fatalf("scan failed: %v", err)
+	}
+	if len(roots) != 1 {
+		t.Fatalf("expected 1 root, got %d", len(roots))
+	}
+
+	root := roots[0]
+	if root.NumFiles != 1 {
+		t.Errorf("expected 1 file (file.txt), got %d", root.NumFiles)
+	}
+	if FindEntryByPath(root, gitDir) != nil {
+		t.Errorf("expected .git directory to be skipped")
+	}
+}
+
+func TestScannerIncludesVCSDirectoriesWhenRequested(t *testing.T) {
+	tmp := t.TempDir()
+
+	repoDir := filepath.Join(tmp, "repo")
+	gitDir := filepath.Join(repoDir, ".git")
+	must(t, os.MkdirAll(gitDir, 0o755))
+	must(t, os.WriteFile(filepath.Join(gitDir, "HEAD"), []byte("ref: refs/heads/main\n"), 0o644))
+	must(t, os.WriteFile(filepath.Join(repoDir, "file.txt"), []byte("hello"), 0o644))
+
+	scanner := NewScanner(nil, false, 0, true)
+	roots, err := scanner.Scan(context.Background(), []string{repoDir})
+	if err != nil {
+		t.Fatalf("scan failed: %v", err)
+	}
+	if len(roots) != 1 {
+		t.Fatalf("expected 1 root, got %d", len(roots))
+	}
+
+	root := roots[0]
+	if root.NumFiles != 2 {
+		t.Errorf("expected 2 files (file.txt + .git/HEAD), got %d", root.NumFiles)
+	}
+	if FindEntryByPath(root, gitDir) == nil {
+		t.Errorf("expected .git directory to be included when -vcs is set")
 	}
 }
