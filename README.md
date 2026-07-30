@@ -170,9 +170,7 @@ make watch-test
 | `-stdout` | Export scan results to stdout (works with any `-format`; non-interactive) | `false` |
 | `-format` | Export format: `json`, `csv`, `tsv`, `yaml`. Defaults to `json`; auto-detected from `-out` extension when omitted. | `json` |
 | `-csv-columns` | Comma-separated CSV/TSV column names | `""` |
-| `-tui-style` | Interactive TUI style: `terminal` or `dua` | `dua` |
-
-### `deps` subcommand flags
+| `-tui-style` | Interactive TUI style: `terminal` or `dua` | `dua` |### `deps` subcommand flags
 
 ```bash
 ./cleanup-tool deps [flags]
