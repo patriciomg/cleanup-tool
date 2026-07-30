@@ -690,6 +690,50 @@ Total size: 200.0 KB
 - **Hot vs. cold filesystem caches** can cause big differences between back-to-back runs. For a fair comparison, run the benchmark twice and use the second run, or drop caches between runs (on macOS: `sync && sudo purge`).
 - **Counting directories** includes the root path itself, so a directory with only files still shows at least one directory.
 
+### Example: before and after adding `ignore_paths`
+
+Suppose you have a project whose `node_modules` directory you do not need to scan. Add the directory to `~/.config/cleanup-tool/config.json`:
+
+```json
+{
+  "version": 2,
+  "ignore_paths": ["/Users/dev/projects/my-app/node_modules"],
+  "ignore_hidden": false,
+  "dup_mode": "smart",
+  "progress_interval": 100
+}
+```
+
+Run the benchmark before the change:
+
+```bash
+./cleanup-tool -benchmark -paths /Users/dev/projects/my-app
+```
+
+```
+Scan benchmark
+Paths: /Users/dev/projects/my-app
+Total time: 1ms
+Files: 250
+Dirs:  3
+Avg throughput: 178635 files/sec, 2144 dirs/sec
+Total size: 250.0 KB
+```
+
+Run the benchmark after the change:
+
+```
+Scan benchmark
+Paths: /Users/dev/projects/my-app
+Total time: 1ms
+Files: 50
+Dirs:  2
+Avg throughput: 65891 files/sec, 2636 dirs/sec
+Total size: 50.0 KB
+```
+
+In this example, ignoring `node_modules` cut the scanned file count from 250 to 50 and the total size from 250 KB to 50 KB. The throughput numbers vary from run to run, but the reduction in work is what matters.
+
 ### Common use cases
 
 - **Compare scan settings** — run `-benchmark` before and after adding paths to `ignore_paths` to see the speedup.
