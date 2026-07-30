@@ -699,10 +699,7 @@ Suppose you have a project whose `node_modules` directory you do not need to sca
 ```json
 {
   "version": 2,
-  "ignore_paths": ["/Users/dev/projects/my-app/node_modules"],
-  "ignore_hidden": false,
-  "dup_mode": "smart",
-  "progress_interval": 100
+  "ignore_paths": ["/Users/dev/projects/my-app/node_modules"]
 }
 ```
 
