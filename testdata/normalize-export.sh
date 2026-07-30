@@ -18,21 +18,21 @@ case "$format" in
     ;;
   csv)
     tmp=$(mktemp)
+    trap 'rm -f "$tmp"' EXIT
     sed -E \
       -e 's|/tmp/cleanup-export-sample-fmt|<SAMPLE_DIR>|g' \
       -e 's/[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}/<TIMESTAMP>/g' \
       "$file" > "$tmp"
     awk 'BEGIN{FS=OFS=","} NR==1{print; next} {if ($7 ~ /^d/){$7="<DIR_MODE>"} else if ($7 ~ /^-/){$7="<FILE_MODE>"}; print}' "$tmp"
-    rm -f "$tmp"
     ;;
   tsv)
     tmp=$(mktemp)
+    trap 'rm -f "$tmp"' EXIT
     sed -E \
       -e 's|/tmp/cleanup-export-sample-fmt|<SAMPLE_DIR>|g' \
       -e 's/[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}/<TIMESTAMP>/g' \
       "$file" > "$tmp"
     awk 'BEGIN{FS=OFS="\t"} NR==1{print; next} {if ($7 ~ /^d/){$7="<DIR_MODE>"} else if ($7 ~ /^-/){$7="<FILE_MODE>"}; print}' "$tmp"
-    rm -f "$tmp"
     ;;
   *)
     echo "unknown format: $format" >&2
