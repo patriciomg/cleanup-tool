@@ -1095,6 +1095,14 @@ func (m *Model) helpView() string {
 		"  ?            toggle this help",
 		"  q            quit",
 		"",
+		"Duplicate-detection modes (set with -dup-mode)",
+		"",
+		"  none         skip duplicate detection (fastest)",
+		"  first10mb    hash only the first 10 MB (fast, may miss duplicates that differ later)",
+		"  sample       hash 1 MB from start, middle, and end (fast, good for media)",
+		"  full         hash the entire file (exact, slow on large files)",
+		"  smart        group by size, then sample, then full-hash only collisions (default)",
+		"",
 	}
 	boxWidth := 60
 	if m.width > 0 && m.width < boxWidth {
