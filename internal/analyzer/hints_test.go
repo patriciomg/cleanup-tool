@@ -236,6 +236,16 @@ func TestSmartMode_FullHashFallbackAvoidsFalsePositive(t *testing.T) {
 	}
 }
 
+func TestFindHintsWithOptions_NilRoot(t *testing.T) {
+	hints, err := FindHintsWithOptions(context.Background(), nil, HintOptions{DupMode: DupHashSmart})
+	if err != nil {
+		t.Fatalf("FindHintsWithOptions: %v", err)
+	}
+	if len(hints) != 0 {
+		t.Fatalf("expected no hints for nil root, got %d", len(hints))
+	}
+}
+
 func TestFindHintsWithOptions_EmptyRoot(t *testing.T) {
 	root := &Entry{Path: "/empty", Name: "empty", IsDir: true, AccessTime: time.Now()}
 	hints, err := FindHintsWithOptions(context.Background(), root, HintOptions{DupMode: DupHashSmart})
