@@ -211,4 +211,14 @@ Do not commit release binaries or tags manually unless you have configured GPG s
 - Check the [README](README.md) for usage and configuration docs.
 - Review the [release notes](https://github.com/patriciomg/cleanup-tool/releases) for recent changes.
 
+## Good first issues
+
+Issues labeled [`good first issue`](https://github.com/patriciomg/cleanup-tool/labels/good%20first%20issue) are intended for new contributors. They are typically small, self-contained, and do not require deep knowledge of the codebase.
+
+If you would like to work on one:
+
+1. Comment on the issue so others know you are picking it up.
+2. Ask questions if anything is unclear — maintainers are happy to help.
+3. Open a pull request when you are ready. Reference the issue with `Fixes #123`.
+
 Thank you for contributing!
