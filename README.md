@@ -284,7 +284,7 @@ Saved rules are reusable cleanup presets stored in `~/.config/cleanup-tool/rules
 ### Examples
 
 ```bash
-# Create a rule that removes old log and cache files
+# Create a rule that removes files older than 30 days from ~/Library/Logs
 ./cleanup-tool rules create --name weekly-logs \
   --paths ~/Library/Logs \
   --categories old \
