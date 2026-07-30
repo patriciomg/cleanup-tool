@@ -370,6 +370,34 @@ func TestFindHintsWithOptions_ProgressInterval(t *testing.T) {
 	}
 }
 
+func TestAgeTime(t *testing.T) {
+	old := time.Now().Add(-2 * 365 * 24 * time.Hour)
+	recent := time.Now().Add(-time.Hour)
+
+	tests := []struct {
+		name      string
+		access    time.Time
+		mod       time.Time
+		wantOld   time.Time
+	}{
+		{"both zero values", time.Time{}, time.Time{}, time.Time{}},
+		{"access older", old, recent, old},
+		{"mod older", recent, old, old},
+		{"mod zero uses access", old, time.Time{}, old},
+		{"access zero uses mod", time.Time{}, old, old},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			e := &Entry{AccessTime: tc.access, ModTime: tc.mod}
+			got := ageTime(e)
+			if !got.Equal(tc.wantOld) {
+				t.Fatalf("ageTime() = %v, want %v", got, tc.wantOld)
+			}
+		})
+	}
+}
+
 func TestSummarizeHints(t *testing.T) {
 	hints := []*DeletabilityHint{
 		{Entry: &Entry{Path: "/old/1"}, Reason: ReasonOld},

@@ -158,11 +158,11 @@ func FindHintsWithOptions(ctx context.Context, root *Entry, opts HintOptions) ([
 		if ageThreshold <= 0 {
 			ageThreshold = 365 * 24 * time.Hour
 		}
-		if time.Since(e.AccessTime) > ageThreshold {
+		if time.Since(ageTime(e)) > ageThreshold {
 			hints = append(hints, &DeletabilityHint{
 				Entry:  e,
 				Reason: ReasonOld,
-				Detail: fmt.Sprintf("last accessed %s", e.AccessTime.Format("2006-01-02")),
+				Detail: fmt.Sprintf("last touched %s", ageTime(e).Format("2006-01-02")),
 			})
 			if opts.state != nil {
 				opts.state.summary.Old++
@@ -485,6 +485,24 @@ func fullHashKey(ctx context.Context, path string, size int64) (string, error) {
 	}
 
 	return fmt.Sprintf("%x", h.Sum(nil)), nil
+}
+
+// ageTime returns the time to use when deciding if an entry is "old".
+// Access time is preferred, but if it is more recent than the modification
+// time we fall back to the modification time. This avoids marking files as
+// recent just because a backup tool or indexer touched them, and makes the
+// age check robust on filesystems where access time updates are flaky.
+func ageTime(e *Entry) time.Time {
+	if e.AccessTime.IsZero() {
+		return e.ModTime
+	}
+	if e.ModTime.IsZero() {
+		return e.AccessTime
+	}
+	if e.AccessTime.Before(e.ModTime) {
+		return e.AccessTime
+	}
+	return e.ModTime
 }
 
 func walk(e *Entry, fn func(*Entry) bool) bool {

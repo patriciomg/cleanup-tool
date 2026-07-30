@@ -821,7 +821,7 @@ These defaults are tuned for fast local SSDs. You do not need to tune them; the 
 
 The analyzer runs on demand (press `a` in the TUI). It does three things:
 
-1. **Age check**: compares access time against a threshold. This is essentially free.
+1. **Age check**: compares the older of the access time and modification time against a threshold. This is essentially free.
 2. **Category check**: checks if a file is classified as a log/cache file. Also essentially free.
 3. **Duplicate detection**: reads file contents and hashes them. This is the expensive part.
 

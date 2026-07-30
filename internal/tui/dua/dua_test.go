@@ -116,7 +116,7 @@ func TestMoveWithoutExternalDirShowsError(t *testing.T) {
 func TestAnalyzerViewShowsHints(t *testing.T) {
 	m := newModel(makeTree())
 	m.hints = []*analyzer.DeletabilityHint{
-		{Entry: &analyzer.Entry{Path: "/tmp/old.log", Name: "old.log"}, Reason: analyzer.ReasonOld, Detail: "last accessed 2024-01-01"},
+		{Entry: &analyzer.Entry{Path: "/tmp/old.log", Name: "old.log"}, Reason: analyzer.ReasonOld, Detail: "last touched 2024-01-01"},
 		{Entry: &analyzer.Entry{Path: "/tmp/dup", Name: "dup"}, Reason: analyzer.ReasonDuplicate, Detail: "2 duplicates"},
 	}
 	m.view = viewAnalyzer
