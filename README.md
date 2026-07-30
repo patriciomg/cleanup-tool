@@ -286,10 +286,18 @@ Saved rules are reusable cleanup presets stored in `~/.config/cleanup-tool/rules
 ```bash
 # Create a rule that removes old log and cache files
 ./cleanup-tool rules create --name weekly-logs \
-  --paths ~/Library/Logs,~/Library/Caches \
-  --categories log/cache \
+  --paths ~/Library/Logs \
+  --categories old \
   --action trash \
   --age-threshold-days 30
+
+# Move old downloads to an external archive before deleting
+./cleanup-tool rules create --name archive-downloads \
+  --paths ~/Downloads \
+  --categories old \
+  --action move_external \
+  --destination /Volumes/External/archive \
+  --age-threshold-days 365
 
 # List all saved rules
 ./cleanup-tool rules list
@@ -340,9 +348,9 @@ Saved rules are reusable cleanup presets stored in `~/.config/cleanup-tool/rules
 
 - **Automated weekly cleanup** — create a rule for `~/Library/Logs` and `~/Library/Caches` and schedule it with `launchd`.
 - **Safe dry-run in CI** — run a rule with `--dry-run` in CI to see what would be deleted without touching files.
-- **Move before deleting** — set `action` to `move_external` and `destination` to an external drive to archive files before eventual deletion.
-- **Target duplicates** — use `categories: duplicate` and `dup-mode: smart` to reclaim space from duplicate files in `~/Downloads` or `~/Pictures`.
-- **Age-based cleanup** — combine `categories: old` and `age-threshold-days` to remove files that have not been accessed in a year.
+- **Move before deleting** — set `--action move_external` and `--destination` to an external drive to archive files before eventual deletion.
+- **Target duplicates** — use `--categories duplicate` and `--dup-mode smart` to reclaim space from duplicate files in `~/Downloads` or `~/Pictures`.
+- **Age-based cleanup** — combine `--categories old` and `--age-threshold-days` to remove files that have not been accessed in a year.
 
 See [Scheduling rules with launchd](#scheduling-rules-with-launchd) to automate any rule on a timer.
 
