@@ -398,6 +398,40 @@ func TestAgeTime(t *testing.T) {
 	}
 }
 
+func TestAgeTimeZeroValues(t *testing.T) {
+	old := time.Now().Add(-2 * 365 * 24 * time.Hour)
+	recent := time.Now().Add(-time.Hour)
+
+	tests := []struct {
+		name      string
+		access    time.Time
+		mod       time.Time
+		want      time.Time
+	}{
+		{"both zero", time.Time{}, time.Time{}, time.Time{}},
+		{"access zero, mod older", time.Time{}, old, old},
+		{"access zero, mod recent", time.Time{}, recent, recent},
+		{"mod zero, access older", old, time.Time{}, old},
+		{"mod zero, access recent", recent, time.Time{}, recent},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			e := &Entry{AccessTime: tc.access, ModTime: tc.mod}
+			got := ageTime(e)
+			if tc.want.IsZero() {
+				if !got.IsZero() {
+					t.Fatalf("ageTime() = %v, want zero value", got)
+				}
+				return
+			}
+			if !got.Equal(tc.want) {
+				t.Fatalf("ageTime() = %v, want %v", got, tc.want)
+			}
+		})
+	}
+}
+
 func TestSummarizeHints(t *testing.T) {
 	hints := []*DeletabilityHint{
 		{Entry: &Entry{Path: "/old/1"}, Reason: ReasonOld},
