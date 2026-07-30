@@ -1246,6 +1246,8 @@ For the full release checklist, including GPG setup, see [`docs/releasing.md`](d
 
 Bug reports, feature requests, and pull requests are welcome. Please open an issue before major changes so we can agree on direction.
 
+For setup instructions, development conventions, the pull request workflow, and details on the snapshot-based CI checks, see [`CONTRIBUTING.md`](CONTRIBUTING.md).
+
 ### CI checks
 
 The following checks run on every pull request:
@@ -1260,92 +1262,7 @@ The following checks run on every pull request:
 - **`test-help-format`** — verifies that the CLI `-h`/`-help` output format has not changed.
 - **`test-export-format`** — verifies that the JSON, CSV, TSV, and YAML export output formats have not changed.
 
-#### `test-benchmark-format`
-
-This job ensures the benchmark output example in the [Benchmark mode](#benchmark-mode) section stays in sync with the code.
-
-What it does:
-
-1. Builds the `cleanup-tool` binary.
-2. Creates a deterministic sample directory using [`testdata/create-benchmark-sample.sh`](testdata/create-benchmark-sample.sh).
-3. Runs `./cleanup-tool -benchmark -paths /tmp/cleanup-benchmark-sample`.
-4. Normalizes variable parts of the output (`Total time` and `Avg throughput`).
-5. Differs the normalized output against [`testdata/benchmark-snapshot.txt`](testdata/benchmark-snapshot.txt).
-
-If the format changes, the job fails with:
-
-```
-Benchmark output format changed. Update testdata/benchmark-snapshot.txt and the 'Benchmark mode' section in README.md.
-```
-
-To update the snapshot after changing the benchmark output, regenerate it locally:
-
-```bash
-go build -o cleanup-tool ./cmd/cleanup-tool
-./testdata/create-benchmark-sample.sh
-./cleanup-tool -benchmark -paths /tmp/cleanup-benchmark-sample | \
-  sed -E 's/Total time: .*/Total time: <TIME>/; s/Avg throughput: .*/Avg throughput: <THROUGHPUT>/' \
-  > testdata/benchmark-snapshot.txt
-```
-
-#### `test-help-format`
-
-This job ensures the [CLI flags](#cli-flags) table stays in sync with the actual `-h`/`-help` output.
-
-What it does:
-
-1. Builds the `cleanup-tool` binary.
-2. Runs `./cleanup-tool -h` and captures the help output.
-3. Normalizes the binary path in the `Usage of ...:` line.
-4. Differs the normalized output against [`testdata/help-snapshot.txt`](testdata/help-snapshot.txt).
-
-If the help text changes, the job fails with:
-
-```
-CLI help output format changed. Update testdata/help-snapshot.txt and the CLI flags table in README.md.
-```
-
-To update the snapshot after changing flags or their descriptions, regenerate it locally:
-
-```bash
-go build -o cleanup-tool ./cmd/cleanup-tool
-./cleanup-tool -h 2>&1 | sed 's/^Usage of .*:$/Usage of <binary>:/' > testdata/help-snapshot.txt
-```
-
-The snapshot is the canonical reference for the help text; update the CLI flags table in README.md to match it, then commit both files together.
-
-#### `test-export-format`
-
-This job ensures the export examples in the [Exporting results](#exporting-results) section stay in sync with the code.
-
-What it does:
-
-1. Builds the `cleanup-tool` binary.
-2. Creates a deterministic sample directory using [`testdata/create-export-sample.sh`](testdata/create-export-sample.sh).
-3. Runs `./cleanup-tool -format <fmt> -stdout -paths /tmp/cleanup-export-sample-fmt` for `json`, `csv`, `tsv`, and `yaml`.
-4. Normalizes variable parts of the outputs (paths, timestamps, and file modes) using [`testdata/normalize-export.sh`](testdata/normalize-export.sh).
-5. Differs the normalized outputs against the snapshots in [`testdata/export-snapshots/`](testdata/export-snapshots/).
-
-If any format changes, the job fails with:
-
-```
-<fmt> export output format changed. Update testdata/export-snapshots/<fmt>.txt and the 'Exporting results' section in README.md.
-```
-
-To update the snapshots after changing an export format, regenerate them locally:
-
-```bash
-go build -o cleanup-tool ./cmd/cleanup-tool
-./testdata/create-export-sample.sh
-./cleanup-tool -format json -stdout -paths /tmp/cleanup-export-sample-fmt > export.json
-./cleanup-tool -format csv -stdout -paths /tmp/cleanup-export-sample-fmt > export.csv
-./cleanup-tool -format tsv -stdout -paths /tmp/cleanup-export-sample-fmt > export.tsv
-./cleanup-tool -format yaml -stdout -paths /tmp/cleanup-export-sample-fmt > export.yaml
-./testdata/normalize-export.sh json export.json > testdata/export-snapshots/json.txt
-./testdata/normalize-export.sh csv export.csv > testdata/export-snapshots/csv.txt
-./testdata/normalize-export.sh tsv export.tsv > testdata/export-snapshots/tsv.txt
-./testdata/normalize-export.sh yaml export.yaml > testdata/export-snapshots/yaml.txt
-```
+See [`CONTRIBUTING.md`](CONTRIBUTING.md) for instructions on regenerating each snapshot.
 
 ## License
 
