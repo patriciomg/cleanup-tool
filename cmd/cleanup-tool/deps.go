@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"text/tabwriter"
 
 	"github.com/patriciomg/cleanup-tool/internal/analyzer"
@@ -23,7 +24,7 @@ func handleDepsCmd(args []string) {
 	var pathsFlag, targetsFlag, sortFlag string
 	var ignoreHidden, jsonOut bool
 	flagSet.StringVar(&pathsFlag, "paths", "", "Comma-separated paths to scan (default: ~)")
-	flagSet.StringVar(&targetsFlag, "targets", "node_modules,vendor,.venv,venv,bower_components,Pods,Carthage", "Comma-separated dependency directory names to find")
+	flagSet.StringVar(&targetsFlag, "targets", strings.Join(deps.DefaultTargets(), ","), "Comma-separated dependency directory names to find")
 	flagSet.StringVar(&sortFlag, "sort", "size", "Sort by: size, access, mod, path")
 	flagSet.BoolVar(&ignoreHidden, "ignore-hidden", false, "Ignore hidden files and directories")
 	flagSet.BoolVar(&jsonOut, "json", false, "Output results as JSON")

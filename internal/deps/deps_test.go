@@ -126,7 +126,25 @@ func TestFinderRespectsIgnorePaths(t *testing.T) {
 }
 
 func TestDefaultTargets(t *testing.T) {
-	want := []string{"node_modules", "vendor", ".venv", "venv", "bower_components", "Pods", "Carthage"}
+	want := []string{
+		"node_modules",
+		".pnpm",
+		"vendor",
+		".venv",
+		"venv",
+		"bower_components",
+		"Pods",
+		"Carthage",
+		".gradle",
+		".m2",
+		"target",
+		".tox",
+		"packages",
+		".nuget",
+		".stack-work",
+		"elm-stuff",
+		"_build",
+	}
 	got := DefaultTargets()
 	if len(got) != len(want) {
 		t.Fatalf("DefaultTargets length mismatch: got %d, want %d", len(got), len(want))
@@ -134,6 +152,33 @@ func TestDefaultTargets(t *testing.T) {
 	for i := range want {
 		if got[i] != want[i] {
 			t.Fatalf("DefaultTargets()[%d] = %q, want %q", i, got[i], want[i])
+		}
+	}
+}
+
+func TestFinderFindsExpandedTargets(t *testing.T) {
+	root := t.TempDir()
+	mustWriteFile(t, filepath.Join(root, "rust", "target", "debug", "app"), "x")
+	mustWriteFile(t, filepath.Join(root, "maven", ".m2", "repository", "a", "b"), "y")
+	mustWriteFile(t, filepath.Join(root, "pnpm", ".pnpm", "store", "pkg"), "z")
+	mustWriteFile(t, filepath.Join(root, "tox", ".tox", "py", "bin"), "w")
+	mustWriteFile(t, filepath.Join(root, "nuget", "packages", "pkg", "x"), "v")
+	mustWriteFile(t, filepath.Join(root, "build", "out.js"), "u")
+
+	finder := NewFinder(DefaultTargets(), nil, false)
+	results, err := finder.Find(context.Background(), []string{root})
+	if err != nil {
+		t.Fatalf("Find error: %v", err)
+	}
+
+	byType := make(map[string]string)
+	for _, d := range results {
+		byType[d.Type] = d.Path
+	}
+	wantTypes := []string{"target", ".m2", ".pnpm", ".tox", "packages"}
+	for _, typ := range wantTypes {
+		if _, ok := byType[typ]; !ok {
+			t.Fatalf("expected to find %s, got types: %v", typ, byType)
 		}
 	}
 }
