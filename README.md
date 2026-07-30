@@ -32,6 +32,7 @@ A fast, terminal-based disk cleanup tool tailored for macOS developers who work 
 - [Recording a demo](#recording-a-demo)
 - [Tips & Tricks](#tips--tricks)
 - [Troubleshooting](#troubleshooting)
+- [Trash and undo](#trash-and-undo)
 - [Releasing](#releasing)
 - [Roadmap](#roadmap)
 - [Contributing](#contributing)
@@ -640,6 +641,38 @@ Add folders you never want to scan (e.g. `~/Library/Caches`, `node_modules`) to 
 
 - Verify the file exists at `~/.config/cleanup-tool/config.json`.
 - If the JSON is invalid, the app prints `config load error:` and exits. Fix the JSON and try again.
+
+## Trash and undo
+
+`cleanup-tool` uses macOS Finder to move items to Trash, which preserves Finder's native behavior (sounds, animations, and "Put Back" support). Undo in the TUI restores items from Trash back to their original locations.
+
+### Where trashed items go
+
+- **Boot volume**: Items are moved to `~/.Trash` (the standard macOS user Trash).
+- **External volumes**: macOS stores trashed items in `.Trashes/<uid>/` at the root of the external volume, for example:
+
+  ```
+  /Volumes/MyDrive/.Trashes/501/
+  ```
+
+  `cleanup-tool` detects the source volume and tracks the correct Trash path for each item, so undo works for files trashed from external drives too.
+
+### Conflict handling
+
+If an item with the same name is already in the Trash, Finder renames the new item (for example, `foo.txt` becomes `foo 1.txt`). `cleanup-tool` captures source metadata before trashing and matches size/modification time to identify the correct Trash destination, even when names collide. Two files with the same basename trashed in the same batch are matched to distinct Trash paths so undo restores each item correctly.
+
+### Restore safety
+
+When you undo a trash or move operation:
+
+- The item is moved from its Trash (or external) location back to its original path.
+- If the original path has been reused by a new file, the new file is moved aside with a `-restored-<nanos>` suffix instead of being overwritten.
+- If the source path no longer exists, undo stops and reports the error so later items are not restored incorrectly.
+
+### Limitations
+
+- Undo relies on the Trash path recorded at the time of the operation. If you manually move or rename an item inside Trash after trashing it, undo may not find it.
+- Cross-device moves (for example, restoring from an external drive to the boot volume) use `rsync` as a fallback. Make sure `rsync` is installed.
 
 ## Releasing
 
