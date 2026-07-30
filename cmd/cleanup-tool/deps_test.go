@@ -9,6 +9,45 @@ import (
 	"testing"
 )
 
+func TestCLIDepsUsesBuiltInDefaultsWithoutConfig(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	root, err := findModuleRoot()
+	if err != nil {
+		t.Fatalf("finding module root: %v", err)
+	}
+	toolDir := filepath.Join(root, "cmd", "cleanup-tool")
+
+	tmp := t.TempDir()
+	configDir := filepath.Join(tmp, "config")
+
+	scanDir := filepath.Join(tmp, "scan")
+	if err := os.MkdirAll(filepath.Join(scanDir, "node_modules"), 0o755); err != nil {
+		t.Fatalf("mkdir node_modules: %v", err)
+	}
+
+	cmd := exec.Command("go", "run", ".", "deps", "-json", "-paths", scanDir)
+	cmd.Dir = toolDir
+	cmd.Env = append(os.Environ(), "XDG_CONFIG_HOME="+configDir)
+	out, err := cmd.Output()
+	if err != nil {
+		t.Fatalf("deps command failed: %v\n%s", err, out)
+	}
+
+	var results []struct {
+		Path string `json:"path"`
+		Type string `json:"type"`
+	}
+	if err := json.Unmarshal(out, &results); err != nil {
+		t.Fatalf("unmarshal deps output: %v\n%s", err, out)
+	}
+	if len(results) != 1 || results[0].Type != "node_modules" {
+		t.Fatalf("expected 1 node_modules result, got %v", results)
+	}
+}
+
 func TestCLIDepsUsesConfigTargets(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping integration test in short mode")
@@ -43,7 +82,7 @@ func TestCLIDepsUsesConfigTargets(t *testing.T) {
 	cmd := exec.Command("go", "run", ".", "deps", "-json", "-paths", scanDir)
 	cmd.Dir = toolDir
 	cmd.Env = append(os.Environ(), "XDG_CONFIG_HOME="+configDir)
-	out, err := cmd.CombinedOutput()
+	out, err := cmd.Output()
 	if err != nil {
 		t.Fatalf("deps command failed: %v\n%s", err, out)
 	}
@@ -97,7 +136,7 @@ func TestCLIDepsTargetsOverrideConfig(t *testing.T) {
 	cmd := exec.Command("go", "run", ".", "deps", "-json", "-paths", scanDir, "-targets", "node_modules")
 	cmd.Dir = toolDir
 	cmd.Env = append(os.Environ(), "XDG_CONFIG_HOME="+configDir)
-	out, err := cmd.CombinedOutput()
+	out, err := cmd.Output()
 	if err != nil {
 		t.Fatalf("deps command failed: %v\n%s", err, out)
 	}
@@ -134,6 +173,129 @@ func TestCLIDepsHelpMentionsConfig(t *testing.T) {
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		t.Fatalf("deps -help failed: %v\n%s", err, out)
+	}
+	if !strings.Contains(string(out), "-targets") {
+		t.Fatalf("expected help to mention -targets flag, got:\n%s", out)
+	}
+}
+
+func TestCLIDepsFallsBackToDefaultsWithCorruptedConfig(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	root, err := findModuleRoot()
+	if err != nil {
+		t.Fatalf("finding module root: %v", err)
+	}
+	toolDir := filepath.Join(root, "cmd", "cleanup-tool")
+
+	tmp := t.TempDir()
+	configDir := filepath.Join(tmp, "config")
+	if err := os.MkdirAll(filepath.Join(configDir, "cleanup-tool"), 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(configDir, "cleanup-tool", "config.json"), []byte("not json"), 0o644); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+
+	scanDir := filepath.Join(tmp, "scan")
+	if err := os.MkdirAll(filepath.Join(scanDir, "node_modules"), 0o755); err != nil {
+		t.Fatalf("mkdir node_modules: %v", err)
+	}
+
+	cmd := exec.Command("go", "run", ".", "deps", "-json", "-paths", scanDir)
+	cmd.Dir = toolDir
+	cmd.Env = append(os.Environ(), "XDG_CONFIG_HOME="+configDir)
+	out, err := cmd.Output()
+	if err != nil {
+		t.Fatalf("deps command failed with corrupted config: %v\n%s", err, out)
+	}
+
+	var results []struct {
+		Path string `json:"path"`
+		Type string `json:"type"`
+	}
+	if err := json.Unmarshal(out, &results); err != nil {
+		t.Fatalf("unmarshal deps output: %v\n%s", err, out)
+	}
+	if len(results) != 1 || results[0].Type != "node_modules" {
+		t.Fatalf("expected 1 node_modules result, got %v", results)
+	}
+}
+
+func TestCLIDepsTargetsOverrideWorksWithCorruptedConfig(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	root, err := findModuleRoot()
+	if err != nil {
+		t.Fatalf("finding module root: %v", err)
+	}
+	toolDir := filepath.Join(root, "cmd", "cleanup-tool")
+
+	tmp := t.TempDir()
+	configDir := filepath.Join(tmp, "config")
+	if err := os.MkdirAll(filepath.Join(configDir, "cleanup-tool"), 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(configDir, "cleanup-tool", "config.json"), []byte("not json"), 0o644); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+
+	scanDir := filepath.Join(tmp, "scan")
+	if err := os.MkdirAll(filepath.Join(scanDir, "custom_dir"), 0o755); err != nil {
+		t.Fatalf("mkdir custom_dir: %v", err)
+	}
+
+	cmd := exec.Command("go", "run", ".", "deps", "-json", "-paths", scanDir, "-targets", "custom_dir")
+	cmd.Dir = toolDir
+	cmd.Env = append(os.Environ(), "XDG_CONFIG_HOME="+configDir)
+	out, err := cmd.Output()
+	if err != nil {
+		t.Fatalf("deps command failed: %v\n%s", err, out)
+	}
+
+	var results []struct {
+		Path string `json:"path"`
+		Type string `json:"type"`
+	}
+	if err := json.Unmarshal(out, &results); err != nil {
+		t.Fatalf("unmarshal deps output: %v\n%s", err, out)
+	}
+	if len(results) != 1 || results[0].Type != "custom_dir" {
+		t.Fatalf("expected 1 custom_dir result, got %v", results)
+	}
+}
+
+func TestCLIDepsHelpWorksWithCorruptedConfig(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	root, err := findModuleRoot()
+	if err != nil {
+		t.Fatalf("finding module root: %v", err)
+	}
+	toolDir := filepath.Join(root, "cmd", "cleanup-tool")
+
+	// Set up a temporary XDG config dir with an invalid config.json.
+	tmp := t.TempDir()
+	configDir := filepath.Join(tmp, "config")
+	if err := os.MkdirAll(filepath.Join(configDir, "cleanup-tool"), 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(configDir, "cleanup-tool", "config.json"), []byte("not json"), 0o644); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+
+	cmd := exec.Command("go", "run", ".", "deps", "-help")
+	cmd.Dir = toolDir
+	cmd.Env = append(os.Environ(), "XDG_CONFIG_HOME="+configDir)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("deps -help failed with corrupted config: %v\n%s", err, out)
 	}
 	if !strings.Contains(string(out), "-targets") {
 		t.Fatalf("expected help to mention -targets flag, got:\n%s", out)

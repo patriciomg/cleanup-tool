@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 	"text/tabwriter"
 
 	"github.com/patriciomg/cleanup-tool/internal/analyzer"
@@ -19,19 +18,13 @@ import (
 
 // handleDepsCmd dispatches the "deps" subcommand.
 func handleDepsCmd(args []string) {
-	cfg, err := config.Load()
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "deps: config load error: %v\n", err)
-		os.Exit(1)
-	}
-
 	flagSet := flag.NewFlagSet("deps", flag.ContinueOnError)
 	flagSet.SetOutput(os.Stderr)
 
 	var pathsFlag, targetsFlag, sortFlag string
 	var ignoreHidden, jsonOut bool
 	flagSet.StringVar(&pathsFlag, "paths", "", "Comma-separated paths to scan (default: ~)")
-	flagSet.StringVar(&targetsFlag, "targets", strings.Join(cfg.DepsTargets, ","), "Comma-separated dependency directory names to find")
+	flagSet.StringVar(&targetsFlag, "targets", "", "Comma-separated dependency directory names to find (default: from config, then built-in defaults)")
 	flagSet.StringVar(&sortFlag, "sort", "size", "Sort by: size, access, mod, path")
 	flagSet.BoolVar(&ignoreHidden, "ignore-hidden", false, "Ignore hidden files and directories")
 	flagSet.BoolVar(&jsonOut, "json", false, "Output results as JSON")
@@ -62,9 +55,25 @@ func handleDepsCmd(args []string) {
 		paths[i] = abs
 	}
 
-	targets := splitTrim(targetsFlag)
-	if len(targets) == 0 {
-		targets = defaults.DepsTargets()
+	var targets []string
+	if len(targetsFlag) > 0 {
+		targets = splitTrim(targetsFlag)
+	}
+
+	cfg, err := config.Load()
+	if err != nil {
+		if len(targets) == 0 {
+			fmt.Fprintf(os.Stderr, "deps: warning: config load error, using built-in defaults: %v\n", err)
+			targets = defaults.DepsTargets()
+		} else {
+			fmt.Fprintf(os.Stderr, "deps: warning: config load error: %v\n", err)
+		}
+		cfg = &config.Config{}
+	} else if len(targets) == 0 {
+		targets = cfg.DepsTargets
+		if len(targets) == 0 {
+			targets = defaults.DepsTargets()
+		}
 	}
 
 	switch sortFlag {
