@@ -23,6 +23,7 @@ A fast, terminal-based disk cleanup tool tailored for macOS developers who work 
 - [Development](#development)
 - [Usage](#usage)
 - [CLI flags](#cli-flags)
+- [Dependency directories](#dependency-directories)
 - [Exporting results](#exporting-results)
 - [Saved rules](#saved-rules)
 - [Scheduling rules with launchd](#scheduling-rules-with-launchd)
@@ -184,6 +185,33 @@ make watch-test
 | `-sort` | Sort results by `size`, `access`, `mod`, or `path` | `size` |
 | `-ignore-hidden` | Skip hidden files and directories | `false` |
 | `-json` | Output results as JSON instead of a table | `false` |
+
+## Dependency directories
+
+The `deps` subcommand finds dependency directories — such as `node_modules`, `vendor`, `.venv`, `Pods`, and others — under one or more paths. It reports each directory's type, size, last access time, and last modified time, sorted by size by default.
+
+```bash
+# Find dependency directories under your projects folder
+./cleanup-tool deps -paths ~/projects
+
+# Output as JSON for scripting or piping into another tool
+./cleanup-tool deps -paths ~/projects -json
+
+# Limit the search to specific directory names
+./cleanup-tool deps -paths ~/projects -targets node_modules,vendor
+
+# Sort by most recently accessed
+./cleanup-tool deps -paths ~/projects -sort access
+```
+
+By default, `deps` searches the built-in list of dependency directory names. You can customize this list in `~/.config/cleanup-tool/config.json` with the `deps_targets` field, or override it per run with `-targets`. See [Configuration file](#configuration-file) for details.
+
+### Common use cases
+
+- **Find the largest dependency directories** across multiple projects before deciding where to free space.
+- **Identify old vendored dependencies** by sorting on `-sort access` to see which directories have not been used recently.
+- **Scope a cleanup to a specific ecosystem** by passing `-targets node_modules` or `-targets vendor`.
+- **Export JSON results** for automated cleanup scripts or CI reporting.
 
 ## Exporting results
 
