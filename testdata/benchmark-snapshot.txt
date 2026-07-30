@@ -1,0 +1,7 @@
+Scan benchmark
+Paths: /tmp/cleanup-benchmark-sample
+Total time: <TIME>
+Files: 2
+Dirs:  2
+Avg throughput: <THROUGHPUT>
+Total size: 12 B

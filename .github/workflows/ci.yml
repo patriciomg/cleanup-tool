@@ -136,6 +136,36 @@ jobs:
           find /tmp/release-smoke -name "cleanup-tool" -type f -exec test -x {} \; -print
           cd dist && shasum -a 256 -c checksums.txt
 
+  test-benchmark-format:
+    name: Verify benchmark output format
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Build binary
+        run: go build -o cleanup-tool ./cmd/cleanup-tool
+
+      - name: Create deterministic sample directory
+        run: ./testdata/create-benchmark-sample.sh
+
+      - name: Run benchmark and normalize output
+        run: |
+          ./cleanup-tool -benchmark -paths /tmp/cleanup-benchmark-sample | sed -E 's/Total time: .*/Total time: <TIME>/; s/Avg throughput: .*/Avg throughput: <THROUGHPUT>/' > normalized.txt
+
+      - name: Compare with snapshot
+        run: |
+          if ! diff -u testdata/benchmark-snapshot.txt normalized.txt; then
+            echo "::error::Benchmark output format changed. Update testdata/benchmark-snapshot.txt and the 'Benchmark mode' section in README.md."
+            exit 1
+          fi
+
   brew-audit:
     name: Audit Homebrew formula
     runs-on: macos-latest
