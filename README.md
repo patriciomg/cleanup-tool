@@ -237,6 +237,8 @@ The examples below were produced by scanning a small sample directory with a few
 ./cleanup-tool -format json -stdout -paths /tmp/cleanup-export-sample
 ```
 
+> The example below is truncated for brevity; the real output includes every field and every nested child.
+
 ```json
 [
   {
@@ -308,6 +310,8 @@ Path	Name	Size	Usage	ModTime	AccessTime	Mode	IsDir	Category	NumFiles	NumDirs	Sca
 ```bash
 ./cleanup-tool -format yaml -stdout -paths /tmp/cleanup-export-sample
 ```
+
+> The example below is truncated for brevity; the real output includes every field and every nested child.
 
 ```yaml
 - path: /tmp/cleanup-export-sample
