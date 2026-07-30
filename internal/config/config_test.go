@@ -55,6 +55,37 @@ func TestLoadMigrationsEmptyDepsTargets(t *testing.T) {
 	}
 }
 
+func TestDefaultIncludeVCSIsFalse(t *testing.T) {
+	cfg := Default()
+	if cfg.IncludeVCS {
+		t.Fatal("expected default IncludeVCS to be false")
+	}
+}
+
+func TestLoadPreservesIncludeVCS(t *testing.T) {
+	tmp := t.TempDir()
+	oldConfigHome := xdg.ConfigHome
+	t.Cleanup(func() { xdg.ConfigHome = oldConfigHome })
+	xdg.ConfigHome = tmp
+
+	cfgPath := filepath.Join(tmp, "cleanup-tool", "config.json")
+	if err := os.MkdirAll(filepath.Dir(cfgPath), 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	data := []byte(`{"include_vcs": true}`)
+	if err := os.WriteFile(cfgPath, data, 0o644); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("load config: %v", err)
+	}
+	if !cfg.IncludeVCS {
+		t.Fatal("expected IncludeVCS to be true after loading config")
+	}
+}
+
 func TestLoadPreservesCustomDepsTargets(t *testing.T) {
 	tmp := t.TempDir()
 	oldConfigHome := xdg.ConfigHome

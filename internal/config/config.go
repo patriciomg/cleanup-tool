@@ -17,6 +17,7 @@ type Config struct {
 	Version          int      `json:"version"`
 	IgnorePaths      []string `json:"ignore_paths"`
 	IgnoreHidden     bool     `json:"ignore_hidden"`
+	IncludeVCS       bool     `json:"include_vcs"`
 	TrashOnly        bool     `json:"trash_only"`
 	DupMode          string   `json:"dup_mode"`
 	ProgressInterval int      `json:"progress_interval"`
@@ -38,6 +39,7 @@ func Default() *Config {
 		Version:              2,
 		IgnorePaths:          DefaultIgnorePaths(),
 		IgnoreHidden:         false,
+		IncludeVCS:           false,
 		TrashOnly:            true,
 		DupMode:              "smart",
 		ProgressInterval:     100,

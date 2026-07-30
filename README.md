@@ -234,6 +234,17 @@ Use the `-vcs` flag to include them if you really want them scanned:
 
 Without `-vcs`, these directories are skipped entirely. This is usually what you want when analyzing disk usage or cleaning up build artifacts. Use `-vcs` only when you need to inspect or export repository metadata.
 
+You can also persist this preference in `~/.config/cleanup-tool/config.json` with the `include_vcs` field:
+
+```json
+{
+  "version": 2,
+  "include_vcs": true
+}
+```
+
+When `include_vcs` is `true`, the `-vcs` flag defaults to enabled; you can still disable it for a single run with `-vcs=false`.
+
 ## Dependency directories
 
 The `deps` subcommand finds dependency directories — such as `node_modules`, `vendor`, `.venv`, `Pods`, and others — under one or more paths. It reports each directory's type, size, last access time, and last modified time, sorted by size by default. `deps` is a read-only discovery command: it only lists directories and never deletes anything.
@@ -865,6 +876,7 @@ Example `~/.config/cleanup-tool/config.json`:
     "/private/var/db/timezone"
   ],
   "ignore_hidden": false,
+  "include_vcs": false,
   "trash_only": true,
   "dup_mode": "smart",
   "progress_interval": 100,
@@ -897,6 +909,7 @@ Example `~/.config/cleanup-tool/config.json`:
 | `version` | int | Config schema version (currently `2`) |
 | `ignore_paths` | list of strings | Absolute paths to skip during scans |
 | `ignore_hidden` | bool | Skip hidden files and directories by default |
+| `include_vcs` | bool | Include version-control directories (`.git`, `.hg`, `.svn`, etc.) in scans |
 | `trash_only` | bool | **Reserved**: currently not enforced by the CLI |
 | `dup_mode` | string | Default duplicate-detection mode: `first10mb`, `sample`, `full`, `smart` |
 | `progress_interval` | int | Report scan/analyzer progress every N items |

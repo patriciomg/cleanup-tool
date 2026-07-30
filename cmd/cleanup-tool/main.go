@@ -75,7 +75,7 @@ func main() {
 	flag.StringVar(&dupModeFlag, "dup-mode", cfg.DupMode, "Duplicate detection mode: first10mb, sample, full, smart")
 	flag.IntVar(&progressInterval, "progress-interval", cfg.ProgressInterval, "Report analyzer progress every N files")
 	flag.StringVar(&tuiStyle, "tui-style", "dua", "Interactive TUI style: terminal or dua")
-	flag.BoolVar(&includeVCS, "vcs", false, "Include VCS directories (.git, .hg, etc.) in scan")
+	flag.BoolVar(&includeVCS, "vcs", cfg.IncludeVCS, "Include VCS directories (.git, .hg, etc.) in scan")
 	flag.Parse()
 
 	ignoreHidden := cfg.IgnoreHidden
