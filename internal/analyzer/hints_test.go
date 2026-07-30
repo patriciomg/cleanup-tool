@@ -375,40 +375,14 @@ func TestAgeTime(t *testing.T) {
 	recent := time.Now().Add(-time.Hour)
 
 	tests := []struct {
-		name      string
-		access    time.Time
-		mod       time.Time
-		wantOld   time.Time
-	}{
-		{"both zero values", time.Time{}, time.Time{}, time.Time{}},
-		{"access older", old, recent, old},
-		{"mod older", recent, old, old},
-		{"mod zero uses access", old, time.Time{}, old},
-		{"access zero uses mod", time.Time{}, old, old},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			e := &Entry{AccessTime: tc.access, ModTime: tc.mod}
-			got := ageTime(e)
-			if !got.Equal(tc.wantOld) {
-				t.Fatalf("ageTime() = %v, want %v", got, tc.wantOld)
-			}
-		})
-	}
-}
-
-func TestAgeTimeZeroValues(t *testing.T) {
-	old := time.Now().Add(-2 * 365 * 24 * time.Hour)
-	recent := time.Now().Add(-time.Hour)
-
-	tests := []struct {
-		name      string
-		access    time.Time
-		mod       time.Time
-		want      time.Time
+		name   string
+		access time.Time
+		mod    time.Time
+		want   time.Time
 	}{
 		{"both zero", time.Time{}, time.Time{}, time.Time{}},
+		{"access older", old, recent, old},
+		{"mod older", recent, old, old},
 		{"access zero, mod older", time.Time{}, old, old},
 		{"access zero, mod recent", time.Time{}, recent, recent},
 		{"mod zero, access older", old, time.Time{}, old},
