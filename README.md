@@ -29,6 +29,7 @@ A fast, terminal-based disk cleanup tool tailored for macOS developers who work 
 - [Scheduling rules with launchd](#scheduling-rules-with-launchd)
 - [Docker disk usage](#docker-disk-usage)
 - [Benchmark mode](#benchmark-mode)
+- [Performance](#performance)
 - [Configuration file](#configuration-file)
 - [Key bindings](#key-bindings)
 - [Demo](#demo)
@@ -694,6 +695,66 @@ Total size: 200.0 KB
 - **Compare scan settings** — run `-benchmark` before and after adding paths to `ignore_paths` to see the speedup.
 - **Validate hardware changes** — compare throughput after switching from a spinning disk to an SSD or after moving a project to an external drive.
 - **Troubleshoot slow scans** — if the TUI feels sluggish, `-benchmark` tells you how fast the scanner is. If the benchmark throughput is low, the scanner (not the analyzer) is likely the bottleneck.
+
+## Performance
+
+This section explains what makes scanning and analysis fast or slow, and how to pick settings that match your hardware and data.
+
+### Scanner
+
+The scanner walks all provided roots concurrently. It uses two bounded semaphore pools to avoid exhausting file descriptors or spawning an unbounded number of goroutines:
+
+- **Directory reads** (`readDirSem`): up to `CPU count × 4`, clamped between 64 and 256.
+- **Metadata/stat lookups** (`statSem`): up to `CPU count × 8`, clamped between 128 and 512.
+
+These defaults are tuned for fast local SSDs. You do not need to tune them; the scanner automatically throttles itself.
+
+#### What slows the scanner down
+
+- **Very large directories** with tens of thousands of entries still serialize on the metadata semaphore, so a single huge directory can become a bottleneck.
+- **Network drives** and **external HDDs** usually cannot sustain the same concurrency as an internal SSD; throughput drops because the drives become the bottleneck, not the CPU.
+- **Hot/cold filesystem caches** can make the same scan twice as fast or slow. Run `-benchmark` twice and use the second result for a fair comparison.
+- **Hidden files** add overhead only if you need them; use `-ignore-hidden` when you don't.
+
+### Analyzer
+
+The analyzer runs on demand (press `a` in the TUI). It does three things:
+
+1. **Age check**: compares access time against a threshold. This is essentially free.
+2. **Category check**: checks if a file is classified as a log/cache file. Also essentially free.
+3. **Duplicate detection**: reads file contents and hashes them. This is the expensive part.
+
+### Duplicate-detection modes
+
+| Mode | Speed | Accuracy | When to use |
+|------|-------|----------|-------------|
+| `none` | Fastest | No duplicate detection | You only care about old/log/cache files |
+| `sample` | Fast | High | Large media/Downloads folders |
+| `first10mb` | Medium | Medium | Legacy mode; mostly for compatibility |
+| `full` | Slowest | Exact | Small, critical data sets |
+| `smart` | Fast to medium | Near-exact | Default; recommended for most cases |
+
+- **`smart`** groups files by size first. Files with unique sizes cannot be duplicates, so they are skipped. Colliding sizes are sample-hashed; only samples that collide are full-hashed. This gives near-exact results without reading every byte of every file.
+- **`sample`** reads 1 MB from the start, middle, and end of each file. Good for large media libraries where reading the whole file would be slow.
+- **`first10mb`** hashes only the first 10 MB. Fast but may miss duplicates that differ after 10 MB.
+- **`full`** reads every byte. Most accurate, but can be very slow on large files.
+- **`none`** skips duplicate detection entirely.
+
+### Memory usage
+
+- The scanner builds the entire directory tree in memory before the TUI or analyzer runs. Large scans can use hundreds of megabytes or more.
+- Duplicate detection keeps hash keys in memory but does not keep file contents in memory.
+- If you are scanning very large paths and memory is tight, split the scan into smaller paths or ignore the largest subtrees.
+
+### Recommended settings
+
+| Situation | Suggested flags |
+|-----------|-----------------|
+| Quick overview | `-ignore-hidden -dup-mode none` |
+| Large media/Downloads | `-dup-mode sample` or `-dup-mode smart` |
+| Critical small dataset | `-dup-mode full` |
+| Slow external drive | `-ignore-hidden -dup-mode none`, then re-run with `smart` only on suspect paths |
+| CI/automation | `-benchmark` first, then use the appropriate `-dup-mode` |
 
 ## Configuration file
 
