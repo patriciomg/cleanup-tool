@@ -4,7 +4,7 @@
   usage: 0
   modtime: <TIMESTAMP>
   accesstime: <TIMESTAMP>
-  mode: <DIR_MODE>
+  mode: <MODE>
   isdir: true
   category: unknown
   children:
@@ -14,7 +14,7 @@
       usage: 0
       modtime: <TIMESTAMP>
       accesstime: <TIMESTAMP>
-      mode: <FILE_MODE>
+      mode: <MODE>
       isdir: false
       category: archive
       children: []
@@ -28,7 +28,7 @@
       usage: 0
       modtime: <TIMESTAMP>
       accesstime: <TIMESTAMP>
-      mode: <FILE_MODE>
+      mode: <MODE>
       isdir: false
       category: unknown
       children: []
@@ -42,7 +42,7 @@
       usage: 0
       modtime: <TIMESTAMP>
       accesstime: <TIMESTAMP>
-      mode: <DIR_MODE>
+      mode: <MODE>
       isdir: true
       category: unknown
       children:
@@ -52,7 +52,7 @@
           usage: 0
           modtime: <TIMESTAMP>
           accesstime: <TIMESTAMP>
-          mode: <FILE_MODE>
+          mode: <MODE>
           isdir: false
           category: llm-model
           children: []
