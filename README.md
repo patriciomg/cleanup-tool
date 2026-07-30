@@ -279,17 +279,19 @@ If `-out` has an extension that is not `.json`, `.csv`, `.tsv`, `.yaml`, or `.ym
 
 ## Saved rules
 
-Rules are reusable cleanup presets stored in `~/.config/cleanup-tool/rules.json`.
+Saved rules are reusable cleanup presets stored in `~/.config/cleanup-tool/rules.json`. They let you define a cleanup once and run it repeatedly — from the CLI, in scripts, or on a schedule via `launchd`. Each rule specifies where to scan, which categories to target, and whether to trash or move the matched items.
+
+### Examples
 
 ```bash
-# Create a rule
+# Create a rule that removes old log and cache files
 ./cleanup-tool rules create --name weekly-logs \
   --paths ~/Library/Logs,~/Library/Caches \
   --categories log/cache \
   --action trash \
   --age-threshold-days 30
 
-# List rules
+# List all saved rules
 ./cleanup-tool rules list
 
 # Show a rule as JSON
@@ -298,15 +300,17 @@ Rules are reusable cleanup presets stored in `~/.config/cleanup-tool/rules.json`
 # Edit a rule in $EDITOR
 ./cleanup-tool rules edit weekly-logs
 
+# Dry-run before running for real
+./cleanup-tool rules run weekly-logs --dry-run
+
+# Run the rule non-interactively
+./cleanup-tool rules run weekly-logs --yes
+
 # Delete a rule
 ./cleanup-tool rules delete weekly-logs
-
-# Dry-run and run a rule
-./cleanup-tool rules run weekly-logs --dry-run
-./cleanup-tool rules run weekly-logs --yes
 ```
 
-Rule fields:
+### Rule fields
 
 | Field | Description |
 |-------|-------------|
@@ -331,6 +335,16 @@ Rule fields:
   --action trash \
   --max-deleted-bytes 2147483648
 ```
+
+### Common use cases
+
+- **Automated weekly cleanup** — create a rule for `~/Library/Logs` and `~/Library/Caches` and schedule it with `launchd`.
+- **Safe dry-run in CI** — run a rule with `--dry-run` in CI to see what would be deleted without touching files.
+- **Move before deleting** — set `action` to `move_external` and `destination` to an external drive to archive files before eventual deletion.
+- **Target duplicates** — use `categories: duplicate` and `dup-mode: smart` to reclaim space from duplicate files in `~/Downloads` or `~/Pictures`.
+- **Age-based cleanup** — combine `categories: old` and `age-threshold-days` to remove files that have not been accessed in a year.
+
+See [Scheduling rules with launchd](#scheduling-rules-with-launchd) to automate any rule on a timer.
 
 ## Scheduling rules with launchd
 
