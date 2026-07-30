@@ -1255,7 +1255,7 @@ The following checks run on every pull request:
 - A release smoke test that builds the macOS universal binary, tarball, and checksums.
 - A Homebrew formula audit against the [`patriciomg/homebrew-cleanup-tool`](https://github.com/patriciomg/homebrew-cleanup-tool) tap.
 - **`test-benchmark-format`** — verifies that the `-benchmark` output format has not changed.
-- **`test-help-format`** — verifies that the CLI `-help`/`-h` output format has not changed.
+- **`test-help-format`** — verifies that the CLI `-h`/`-help` output format has not changed.
 
 #### `test-benchmark-format`
 
@@ -1287,7 +1287,7 @@ go build -o cleanup-tool ./cmd/cleanup-tool
 
 #### `test-help-format`
 
-This job ensures the [CLI flags](#cli-flags) table stays in sync with the actual `-help` output.
+This job ensures the [CLI flags](#cli-flags) table stays in sync with the actual `-h`/`-help` output.
 
 What it does:
 
