@@ -694,6 +694,8 @@ Total size: 200.0 KB
 
 Suppose you have a project whose `node_modules` directory you do not need to scan. Add the directory to `~/.config/cleanup-tool/config.json`:
 
+> `ignore_paths` matches prefixes, so the entry must be the absolute path of the directory you want to skip.
+
 ```json
 {
   "version": 2,
