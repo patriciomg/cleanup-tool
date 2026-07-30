@@ -301,6 +301,8 @@ Path	Name	Size	Usage	ModTime	AccessTime	Mode	IsDir	Category	NumFiles	NumDirs	Sca
 /tmp/cleanup-export-sample/subdir/data.bin	data.bin	3072	0	2026-07-30T12:27:02	2026-07-30T12:27:02	-rw-r--r--	false	llm-model	0	0	true
 ```
 
+> Columns are separated by tab characters in the real output. The snippet above renders tabs as whitespace; pipe the output into `cat -A` to see `^I` between columns.
+
 ### YAML
 
 ```bash
@@ -334,7 +336,7 @@ Path	Name	Size	Usage	ModTime	AccessTime	Mode	IsDir	Category	NumFiles	NumDirs	Sca
       error: null
 ```
 
-> YAML keys are lower-cased because the YAML encoder normalizes struct tag names.
+> Note: YAML keys appear in lower case (for example, `ModTime` is rendered as `modtime` and `NumFiles` as `numfiles`).
 
 ### Selecting columns
 
