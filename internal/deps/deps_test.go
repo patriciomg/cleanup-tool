@@ -5,6 +5,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/patriciomg/cleanup-tool/internal/defaults"
 )
 
 func TestFinderFindsTargets(t *testing.T) {
@@ -31,7 +33,7 @@ func TestFinderFindsTargets(t *testing.T) {
 	// outer one, not be reported separately.
 	mustWriteFile(t, filepath.Join(a, "a", "node_modules", "c", "x"), "yy") // 2 bytes
 
-	finder := NewFinder(DefaultTargets(), nil, false)
+	finder := NewFinder(defaults.DepsTargets(), nil, false)
 	results, err := finder.Find(context.Background(), []string{root})
 	if err != nil {
 		t.Fatalf("Find error: %v", err)
@@ -93,7 +95,7 @@ func TestFinderIgnoresHidden(t *testing.T) {
 	mustWriteFile(t, filepath.Join(root, ".hidden", "node_modules", "pkg", "x"), "abc")
 	mustWriteFile(t, filepath.Join(root, "visible", "node_modules", "pkg", "x"), "def")
 
-	finder := NewFinder(DefaultTargets(), nil, true)
+	finder := NewFinder(defaults.DepsTargets(), nil, true)
 	results, err := finder.Find(context.Background(), []string{root})
 	if err != nil {
 		t.Fatalf("Find error: %v", err)
@@ -112,7 +114,7 @@ func TestFinderRespectsIgnorePaths(t *testing.T) {
 	mustWriteFile(t, filepath.Join(ignorePath, "node_modules", "a", "x"), "123")
 	mustWriteFile(t, filepath.Join(root, "keep", "node_modules", "b", "x"), "456")
 
-	finder := NewFinder(DefaultTargets(), []string{ignorePath}, false)
+	finder := NewFinder(defaults.DepsTargets(), []string{ignorePath}, false)
 	results, err := finder.Find(context.Background(), []string{root})
 	if err != nil {
 		t.Fatalf("Find error: %v", err)
@@ -125,36 +127,7 @@ func TestFinderRespectsIgnorePaths(t *testing.T) {
 	}
 }
 
-func TestDefaultTargets(t *testing.T) {
-	want := []string{
-		"node_modules",
-		".pnpm",
-		"vendor",
-		".venv",
-		"venv",
-		"bower_components",
-		"Pods",
-		"Carthage",
-		".gradle",
-		".m2",
-		"target",
-		".tox",
-		"packages",
-		".nuget",
-		".stack-work",
-		"elm-stuff",
-		"_build",
-	}
-	got := DefaultTargets()
-	if len(got) != len(want) {
-		t.Fatalf("DefaultTargets length mismatch: got %d, want %d", len(got), len(want))
-	}
-	for i := range want {
-		if got[i] != want[i] {
-			t.Fatalf("DefaultTargets()[%d] = %q, want %q", i, got[i], want[i])
-		}
-	}
-}
+
 
 func TestFinderFindsExpandedTargets(t *testing.T) {
 	root := t.TempDir()
@@ -165,7 +138,7 @@ func TestFinderFindsExpandedTargets(t *testing.T) {
 	mustWriteFile(t, filepath.Join(root, "nuget", "packages", "pkg", "x"), "v")
 	mustWriteFile(t, filepath.Join(root, "build", "out.js"), "u")
 
-	finder := NewFinder(DefaultTargets(), nil, false)
+	finder := NewFinder(defaults.DepsTargets(), nil, false)
 	results, err := finder.Find(context.Background(), []string{root})
 	if err != nil {
 		t.Fatalf("Find error: %v", err)

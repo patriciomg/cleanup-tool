@@ -12,6 +12,7 @@ import (
 
 	"github.com/patriciomg/cleanup-tool/internal/analyzer"
 	"github.com/patriciomg/cleanup-tool/internal/config"
+	"github.com/patriciomg/cleanup-tool/internal/defaults"
 	"github.com/patriciomg/cleanup-tool/internal/deps"
 	"github.com/patriciomg/cleanup-tool/internal/utils"
 )
@@ -63,7 +64,7 @@ func handleDepsCmd(args []string) {
 
 	targets := splitTrim(targetsFlag)
 	if len(targets) == 0 {
-		targets = deps.DefaultTargets()
+		targets = defaults.DepsTargets()
 	}
 
 	switch sortFlag {

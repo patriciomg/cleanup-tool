@@ -15,6 +15,7 @@ import (
 	"github.com/patriciomg/cleanup-tool/internal/actions"
 	"github.com/patriciomg/cleanup-tool/internal/analyzer"
 	"github.com/patriciomg/cleanup-tool/internal/config"
+	"github.com/patriciomg/cleanup-tool/internal/defaults"
 	"github.com/patriciomg/cleanup-tool/internal/notifications"
 	"github.com/patriciomg/cleanup-tool/internal/deps"
 	"github.com/patriciomg/cleanup-tool/internal/recent"
@@ -1762,7 +1763,7 @@ func (m *Model) fetchDeps() tea.Cmd {
 				scanPaths = append(scanPaths, r.Path)
 			}
 		}
-		finder := deps.NewFinder(deps.DefaultTargets(), m.ignorePaths, m.ignoreHidden)
+		finder := deps.NewFinder(defaults.DepsTargets(), m.ignorePaths, m.ignoreHidden)
 		found, err := finder.Find(context.Background(), scanPaths)
 		if err == nil {
 			deps.SortResults(found, "size")

@@ -8,7 +8,7 @@ import (
 
 	"github.com/adrg/xdg"
 
-	"github.com/patriciomg/cleanup-tool/internal/deps"
+	"github.com/patriciomg/cleanup-tool/internal/defaults"
 )
 
 const appName = "cleanup-tool"
@@ -43,7 +43,7 @@ func Default() *Config {
 		ProgressInterval:     100,
 		SortOrder:            "size",
 		NotificationsEnabled: true,
-		DepsTargets:          deps.DefaultTargets(),
+		DepsTargets:          defaults.DepsTargets(),
 	}
 }
 
@@ -89,7 +89,7 @@ func (c *Config) migrate() {
 		c.SortOrder = "size"
 	}
 	if len(c.DepsTargets) == 0 {
-		c.DepsTargets = deps.DefaultTargets()
+		c.DepsTargets = defaults.DepsTargets()
 	}
 	if c.Version < 2 {
 		// Notifications were previously always enabled; keep that behavior.

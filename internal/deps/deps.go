@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/patriciomg/cleanup-tool/internal/analyzer"
+	"github.com/patriciomg/cleanup-tool/internal/defaults"
 	"github.com/patriciomg/cleanup-tool/internal/utils"
 )
 
@@ -36,29 +37,6 @@ type Finder struct {
 	Targets      []string
 	IgnorePaths  []string
 	IgnoreHidden bool
-}
-
-// DefaultTargets returns the built-in dependency directory names.
-func DefaultTargets() []string {
-	return []string{
-		"node_modules",
-		".pnpm",
-		"vendor",
-		".venv",
-		"venv",
-		"bower_components",
-		"Pods",
-		"Carthage",
-		".gradle",
-		".m2",
-		"target",
-		".tox",
-		"packages",
-		".nuget",
-		".stack-work",
-		"elm-stuff",
-		"_build",
-	}
 }
 
 // NewFinder creates a new Finder.
@@ -86,7 +64,7 @@ func normalizeIgnorePath(p string) string {
 func (f *Finder) Find(ctx context.Context, roots []string) ([]*DependencyDir, error) {
 	targets := f.Targets
 	if len(targets) == 0 {
-		targets = DefaultTargets()
+		targets = defaults.DepsTargets()
 	}
 	targetSet := make(map[string]struct{}, len(targets))
 	for _, t := range targets {

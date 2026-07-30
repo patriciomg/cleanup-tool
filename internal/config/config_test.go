@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/adrg/xdg"
-	"github.com/patriciomg/cleanup-tool/internal/deps"
+	"github.com/patriciomg/cleanup-tool/internal/defaults"
 )
 
 func TestDefaultIncludesDepsTargets(t *testing.T) {
@@ -14,7 +14,7 @@ func TestDefaultIncludesDepsTargets(t *testing.T) {
 	if len(cfg.DepsTargets) == 0 {
 		t.Fatal("expected default DepsTargets to be non-empty")
 	}
-	want := deps.DefaultTargets()
+	want := defaults.DepsTargets()
 	if len(cfg.DepsTargets) != len(want) {
 		t.Fatalf("expected %d default targets, got %d", len(want), len(cfg.DepsTargets))
 	}
@@ -49,7 +49,7 @@ func TestLoadMigrationsEmptyDepsTargets(t *testing.T) {
 	if len(cfg.DepsTargets) == 0 {
 		t.Fatal("expected migrated DepsTargets to be non-empty")
 	}
-	want := deps.DefaultTargets()
+	want := defaults.DepsTargets()
 	if len(cfg.DepsTargets) != len(want) {
 		t.Fatalf("expected %d default targets after migration, got %d", len(want), len(cfg.DepsTargets))
 	}
