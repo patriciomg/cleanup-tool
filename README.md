@@ -22,6 +22,7 @@ A fast, terminal-based disk cleanup tool tailored for macOS developers who work 
 
 - [Features](#features)
 - [Install](#install)
+- [Development quickstart](#development-quickstart)
 - [Development](#development)
 - [Usage](#usage)
 - [CLI flags](#cli-flags)
@@ -108,6 +109,27 @@ git clone https://github.com/patriciomg/cleanup-tool.git
 cd cleanup-tool
 go build ./cmd/cleanup-tool
 ```
+
+## Development quickstart
+
+Clone the repository and build the binary:
+
+```bash
+git clone https://github.com/patriciomg/cleanup-tool.git
+cd cleanup-tool
+go build ./cmd/cleanup-tool
+```
+
+Common commands:
+
+| Command | Description |
+|---------|-------------|
+| `go build ./cmd/cleanup-tool` | Build the binary |
+| `go test ./...` / `make test` | Run all tests |
+| `go vet ./...` / `make vet` | Run static analysis |
+| `make release` | Build the macOS universal release binary, tarball, and checksums |
+
+For the full development setup, project conventions, snapshot-based CI checks, and the pull request workflow, see [`CONTRIBUTING.md`](CONTRIBUTING.md).
 
 ## Development
 
