@@ -186,7 +186,7 @@ make watch-test
 
 ## Dependency directories
 
-The `deps` subcommand finds dependency directories — such as `node_modules`, `vendor`, `.venv`, `Pods`, and others — under one or more paths. It reports each directory's type, size, last access time, and last modified time, sorted by size by default.
+The `deps` subcommand finds dependency directories — such as `node_modules`, `vendor`, `.venv`, `Pods`, and others — under one or more paths. It reports each directory's type, size, last access time, and last modified time, sorted by size by default. `deps` is a read-only discovery command: it only lists directories and never deletes anything.
 
 ```bash
 # Find dependency directories under your projects folder
