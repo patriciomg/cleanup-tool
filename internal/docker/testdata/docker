@@ -19,13 +19,42 @@ case "$cmd" in
     shift || true
     case "$sub" in
       df)
-        # Output canned system df rows regardless of remaining args.
-        cat <<'JSON'
+        # Detect verbose mode by scanning args.
+        has_v=false
+        for arg in "$@"; do
+          case "$arg" in
+            -v|--verbose) has_v=true ;;
+          esac
+        done
+        if $has_v; then
+          cat <<'VOL'
+Images space usage:
+
+REPOSITORY    TAG    IMAGE ID    CREATED        SIZE
+nginx         latest abc123      2 days ago     1.5GB
+
+Containers space usage:
+
+CONTAINER ID    IMAGE    COMMAND    CREATED        STATUS    PORTS    NAMES    SIZE
+abc123          nginx    "sh"       2 days ago     Up                 web      200MB
+
+Local Volumes space usage:
+
+VOLUME NAME    LINKS    SIZE
+vol1           2        75MB
+vol2           0        25MB
+
+Build cache usage: 0B
+
+VOL
+        else
+          cat <<'JSON'
 {"Type":"Images","TotalCount":"5","Active":"2","Size":"1.5GB","Reclaimable":"500MB"}
 {"Type":"Containers","TotalCount":"3","Active":"1","Size":"200MB","Reclaimable":"150MB"}
 {"Type":"Local Volumes","TotalCount":"2","Active":"1","Size":"100MB","Reclaimable":"50MB"}
 {"Type":"Build Cache","TotalCount":"0","Active":"0","Size":"0B","Reclaimable":"0B"}
 JSON
+        fi
         ;;
       prune)
         echo "Total reclaimed space: 100MB"

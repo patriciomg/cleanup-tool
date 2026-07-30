@@ -385,6 +385,11 @@ func (r *realClient) listVolumes(ctx context.Context) ([]DockerItem, error) {
 		return nil, fmt.Errorf("cannot determine volume mounts: %w", err)
 	}
 
+	// Fetch real volume sizes from docker system df -v. Volumes report no size
+	// from docker volume ls, so this is the only reliable way to display usage.
+	// This is best-effort: if the command fails, we fall back to zero sizes.
+	sizes, _ := r.volumeSizes(ctx)
+
 	var items []DockerItem
 	var ids []string
 	for _, line := range out {
@@ -393,16 +398,18 @@ func (r *realClient) listVolumes(ctx context.Context) ([]DockerItem, error) {
 			return nil, fmt.Errorf("parse docker volume row: %w", err)
 		}
 		inUse := len(mounted[row.Name]) > 0
-		items = append(items, DockerItem{
+		item := DockerItem{
 			Type:     "volume",
 			ID:       row.Name,
 			Name:     row.Name,
 			InUse:    inUse,
 			Dangling: !inUse,
 			UsedBy:   mounted[row.Name],
-			// Volumes report no size from docker volume ls; size must come
-			// from docker system df.
-		})
+		}
+		if size, ok := sizes[row.Name]; ok {
+			item.Size = size
+		}
+		items = append(items, item)
 		ids = append(ids, row.Name)
 	}
 
@@ -412,6 +419,60 @@ func (r *realClient) listVolumes(ctx context.Context) ([]DockerItem, error) {
 		applyLabels(items, labels)
 	}
 	return items, nil
+}
+
+// volumeSizes runs `docker system df -v` and parses the verbose volume table,
+// returning a map from volume name to size in bytes.
+func (r *realClient) volumeSizes(ctx context.Context) (map[string]int64, error) {
+	cmd := exec.CommandContext(ctx, "docker", "system", "df", "-v")
+	var out bytes.Buffer
+	var errOut bytes.Buffer
+	cmd.Stdout = &out
+	cmd.Stderr = &errOut
+
+	if err := cmd.Run(); err != nil {
+		return nil, fmt.Errorf("docker system df -v failed: %w: %s", err, strings.TrimSpace(errOut.String()))
+	}
+	return parseVolumeSizes(out.String()), nil
+}
+
+// parseVolumeSizes extracts volume sizes from the output of `docker system df -v`.
+func parseVolumeSizes(output string) map[string]int64 {
+	sizes := make(map[string]int64)
+	inVolumes := false
+	foundHeader := false
+	for _, line := range strings.Split(output, "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		if !inVolumes {
+			if strings.Contains(line, "Local Volumes space usage") {
+				inVolumes = true
+			}
+			continue
+		}
+		// Stop when we hit the next section header (e.g. Build cache).
+		if strings.Contains(line, "space usage:") || strings.Contains(line, "Build cache") {
+			break
+		}
+		if !foundHeader {
+			if strings.HasPrefix(line, "VOLUME NAME") {
+				foundHeader = true
+			}
+			continue
+		}
+		// Parse a data row. Volume names do not contain spaces, but the
+		// LINKS column may be separated by arbitrary whitespace.
+		fields := strings.Fields(line)
+		if len(fields) < 3 {
+			continue
+		}
+		name := fields[0]
+		sizeStr := fields[len(fields)-1]
+		sizes[name] = parseSize(sizeStr)
+	}
+	return sizes
 }
 
 // dockerMount matches the JSON representation of a single Docker mount.

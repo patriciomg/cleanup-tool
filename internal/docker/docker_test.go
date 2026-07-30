@@ -274,6 +274,57 @@ func TestRealClientListContainers(t *testing.T) {
 	}
 }
 
+func TestParseVolumeSizes(t *testing.T) {
+	input := `Images space usage:
+REPOSITORY    TAG    IMAGE ID    CREATED        SIZE
+nginx         latest abc123      2 days ago     1.5GB
+
+Containers space usage:
+CONTAINER ID    IMAGE    COMMAND    CREATED        STATUS    PORTS    NAMES    SIZE
+abc123          nginx    "sh"       2 days ago     Up                 web      200MB
+
+Local Volumes space usage:
+
+VOLUME NAME    LINKS    SIZE
+vol1           2        75MB
+vol2           0        25MB
+
+Build cache usage: 0B
+`
+	sizes := parseVolumeSizes(input)
+	if len(sizes) != 2 {
+		t.Fatalf("expected 2 volumes, got %d: %v", len(sizes), sizes)
+	}
+	if got := sizes["vol1"]; got != 75*1024*1024 {
+		t.Errorf("vol1 size = %d, want %d", got, 75*1024*1024)
+	}
+	if got := sizes["vol2"]; got != 25*1024*1024 {
+		t.Errorf("vol2 size = %d, want %d", got, 25*1024*1024)
+	}
+}
+
+func TestParseVolumeSizesEmptySection(t *testing.T) {
+	input := `Local Volumes space usage:
+
+VOLUME NAME    LINKS    SIZE
+`
+	sizes := parseVolumeSizes(input)
+	if len(sizes) != 0 {
+		t.Errorf("expected empty map for empty volume section, got %v", sizes)
+	}
+}
+
+func TestParseVolumeSizesNoVolumes(t *testing.T) {
+	input := `Images space usage:
+REPOSITORY    TAG    IMAGE ID    CREATED        SIZE
+nginx         latest abc123      2 days ago     1.5GB
+`
+	sizes := parseVolumeSizes(input)
+	if len(sizes) != 0 {
+		t.Errorf("expected empty map, got %v", sizes)
+	}
+}
+
 func TestRealClientListVolumes(t *testing.T) {
 	setupMockDocker(t)
 	client := NewClient()
@@ -304,6 +355,13 @@ func TestRealClientListVolumes(t *testing.T) {
 	}
 	if len(items[1].UsedBy) != 0 {
 		t.Errorf("expected vol2 to have no users, got %v", items[1].UsedBy)
+	}
+	// Volume sizes should be populated from `docker system df -v`.
+	if items[0].Size != 75*1024*1024 {
+		t.Errorf("expected vol1 size 75MB, got %d", items[0].Size)
+	}
+	if items[1].Size != 25*1024*1024 {
+		t.Errorf("expected vol2 size 25MB, got %d", items[1].Size)
 	}
 }
 
