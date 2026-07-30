@@ -69,7 +69,7 @@ func main() {
 	flag.StringVar(&out, "out", "", "Export scan results to the specified file (implies non-interactive)")
 	flag.BoolVar(&json, "json", false, "Export scan results to stdout (non-interactive)")
 	flag.BoolVar(&stdout, "stdout", false, "Export scan results to stdout (works with any -format; alias for -json)")
-	flag.StringVar(&format, "format", "json", "Export format: json, csv, tsv, yaml (default: json; auto-detected from -out extension when not specified)")
+	flag.StringVar(&format, "format", "json", "Export format: json, csv, tsv, yaml, md, html, txt (default: json; auto-detected from -out extension when not specified)")
 	flag.StringVar(&csvColumns, "csv-columns", "", "Comma-separated CSV/TSV column names (default: all columns)")
 	flag.StringVar(&dupModeFlag, "dup-mode", cfg.DupMode, "Duplicate detection mode: first10mb, sample, full, smart")
 	flag.IntVar(&progressInterval, "progress-interval", cfg.ProgressInterval, "Report analyzer progress every N files")
@@ -149,9 +149,9 @@ func main() {
 	}
 
 	switch format {
-	case "json", "csv", "tsv", "yaml":
+	case "json", "csv", "tsv", "yaml", "md", "html", "txt":
 	default:
-		fmt.Fprintf(os.Stderr, "invalid format %q; valid: json, csv, tsv, yaml\n", format)
+		fmt.Fprintf(os.Stderr, "invalid format %q; valid: json, csv, tsv, yaml, md, html, txt\n", format)
 		os.Exit(1)
 	}
 
@@ -310,6 +310,12 @@ func formatFromExtension(path string) string {
 		return "tsv"
 	case ".yaml", ".yml":
 		return "yaml"
+	case ".md":
+		return "md"
+	case ".html", ".htm":
+		return "html"
+	case ".txt":
+		return "txt"
 	default:
 		return ""
 	}
@@ -326,7 +332,7 @@ func resolveFormat(out, defaultFormat string) (string, error) {
 	if filepath.Ext(out) == "" {
 		return defaultFormat, nil
 	}
-	return "", fmt.Errorf("unsupported output extension %q; use -format to choose json, csv, tsv, or yaml", filepath.Ext(out))
+	return "", fmt.Errorf("unsupported output extension %q; use -format to choose json, csv, tsv, yaml, md, html, or txt", filepath.Ext(out))
 }
 
 func parseCSVColumns(s string) ([]string, error) {

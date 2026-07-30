@@ -21,8 +21,10 @@ func TestFormatFromExtension(t *testing.T) {
 		{"/tmp/scan.yaml", "yaml"},
 		{"/tmp/scan.yml", "yaml"},
 		{"/tmp/scan.YAML", "yaml"},
+		{"/tmp/scan.md", "md"},
+		{"/tmp/scan.html", "html"},
+		{"/tmp/scan.txt", "txt"},
 		{"/tmp/scan", ""},
-		{"/tmp/scan.txt", ""},
 		{"scan.JSON", "json"},
 	}
 
@@ -45,7 +47,10 @@ func TestResolveFormat(t *testing.T) {
 		{"/tmp/scan.yaml", "json", "yaml", false},
 		{"/tmp/scan.yml", "json", "yaml", false},
 		{"/tmp/scan", "csv", "csv", false},
-		{"/tmp/scan.txt", "json", "", true},
+		{"/tmp/scan.md", "json", "md", false},
+		{"/tmp/scan.html", "json", "html", false},
+		{"/tmp/scan.txt", "json", "txt", false},
+		{"/tmp/scan.pdf", "json", "", true},
 		{"/tmp/scan.JSON", "json", "json", false},
 	}
 
@@ -124,9 +129,25 @@ func TestCLIFormatAutoDetect(t *testing.T) {
 		t.Fatalf("expected JSON array, got: %s", string(data)[:min(len(data), 50)])
 	}
 
-	// Unknown extension is rejected unless an explicit format is provided.
+	// Auto-detect plain text from .txt extension.
 	txtOut := filepath.Join(tmp, "scan.txt")
 	cmd = exec.Command("go", "run", ".", "-out", txtOut, "-paths", "/tmp")
+	cmd.Dir = toolDir
+	txtBytes, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("txt auto-detect failed: %v\n%s", err, txtBytes)
+	}
+	txtData, err := os.ReadFile(txtOut)
+	if err != nil {
+		t.Fatalf("reading txt output: %v", err)
+	}
+	if len(txtData) == 0 {
+		t.Fatalf("expected non-empty txt output")
+	}
+
+	// Unknown extension is rejected unless an explicit format is provided.
+	pdfOut := filepath.Join(tmp, "scan.pdf")
+	cmd = exec.Command("go", "run", ".", "-out", pdfOut, "-paths", "/tmp")
 	cmd.Dir = toolDir
 	out, err := cmd.CombinedOutput()
 	if err == nil {

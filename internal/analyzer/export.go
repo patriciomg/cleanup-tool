@@ -4,9 +4,11 @@ import (
 	"encoding/csv"
 	"encoding/json"
 	"fmt"
+	"html/template"
 	"io"
 	"os"
 	"strconv"
+	"strings"
 
 	"gopkg.in/yaml.v3"
 )
@@ -21,6 +23,9 @@ var exporters = map[string]Exporter{
 	"csv":  &CSVExporter{},
 	"tsv":  &TSVExporter{},
 	"yaml": YAMLExporter{},
+	"md":   MarkdownExporter{},
+	"html": HTMLExporter{},
+	"txt":  TextExporter{},
 }
 
 // RegisterExporter registers an exporter for the given format name. It can be
@@ -71,6 +76,30 @@ func (YAMLExporter) Export(roots []*Entry, w io.Writer) error {
 	encoder := yaml.NewEncoder(w)
 	defer encoder.Close()
 	return encoder.Encode(roots)
+}
+
+// MarkdownExporter writes the Entry tree as a Markdown table.
+type MarkdownExporter struct{}
+
+// Export implements Exporter for Markdown.
+func (MarkdownExporter) Export(roots []*Entry, w io.Writer) error {
+	return writeMarkdown(roots, w)
+}
+
+// HTMLExporter writes the Entry tree as an HTML report.
+type HTMLExporter struct{}
+
+// Export implements Exporter for HTML.
+func (HTMLExporter) Export(roots []*Entry, w io.Writer) error {
+	return writeHTML(roots, w)
+}
+
+// TextExporter writes the Entry tree as a plain text list.
+type TextExporter struct{}
+
+// Export implements Exporter for plain text.
+func (TextExporter) Export(roots []*Entry, w io.Writer) error {
+	return writeText(roots, w)
 }
 
 // DefaultCSVColumns is the default set of columns written by CSVExporter.
@@ -195,4 +224,132 @@ func csvColumnValue(e *Entry, col string) string {
 	default:
 		return ""
 	}
+}
+
+// writeMarkdown flattens the Entry tree into a Markdown table.
+func writeMarkdown(roots []*Entry, w io.Writer) error {
+	columns := DefaultCSVColumns
+	if _, err := fmt.Fprintf(w, "| %s |\n", strings.Join(columns, " | ")); err != nil {
+		return err
+	}
+	separator := make([]string, len(columns))
+	for i := range columns {
+		separator[i] = "---"
+	}
+	if _, err := fmt.Fprintf(w, "| %s |\n", strings.Join(separator, " | ")); err != nil {
+		return err
+	}
+
+	var walk func(entries []*Entry) error
+	walk = func(entries []*Entry) error {
+		for _, e := range entries {
+			row := make([]string, len(columns))
+			for i, col := range columns {
+				row[i] = escapeMarkdown(csvColumnValue(e, col))
+			}
+			if _, err := fmt.Fprintf(w, "| %s |\n", strings.Join(row, " | ")); err != nil {
+				return err
+			}
+			if err := walk(e.Children); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+	return walk(roots)
+}
+
+func escapeMarkdown(s string) string {
+	return strings.ReplaceAll(s, "|", "\\|")
+}
+
+// writeHTML renders the Entry tree as a simple HTML report.
+func writeHTML(roots []*Entry, w io.Writer) error {
+	const tmpl = `<!DOCTYPE html>
+<html>
+<head>
+	<meta charset="UTF-8">
+	<title>cleanup-tool scan</title>
+	<style>
+		body { font-family: sans-serif; margin: 2rem; }
+		table { border-collapse: collapse; width: 100%; }
+		th, td { border: 1px solid #ccc; padding: 0.5rem; text-align: left; }
+		th { background: #f5f5f5; }
+		tr:nth-child(even) { background: #fafafa; }
+	</style>
+</head>
+<body>
+	<h1>cleanup-tool scan</h1>
+	<table>
+		<thead>
+			<tr>
+				{{ range .Columns }}<th>{{ . }}</th>{{ end }}
+			</tr>
+		</thead>
+		<tbody>
+			{{ range .Rows }}
+			<tr>
+				{{ range . }}<td>{{ . }}</td>{{ end }}
+			</tr>
+			{{ end }}
+		</tbody>
+	</table>
+</body>
+</html>
+`
+	type rowData struct {
+		Columns []string
+		Rows    [][]string
+	}
+
+	columns := DefaultCSVColumns
+	d := rowData{Columns: columns}
+	var walk func(entries []*Entry) error
+	walk = func(entries []*Entry) error {
+		for _, e := range entries {
+			r := make([]string, len(columns))
+			for i, col := range columns {
+				r[i] = csvColumnValue(e, col)
+			}
+			d.Rows = append(d.Rows, r)
+			if err := walk(e.Children); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+	if err := walk(roots); err != nil {
+		return err
+	}
+
+	t, err := template.New("report").Parse(tmpl)
+	if err != nil {
+		return err
+	}
+	return t.Execute(w, d)
+}
+
+// writeText renders the Entry tree as a tab-separated plain text table.
+func writeText(roots []*Entry, w io.Writer) error {
+	columns := DefaultCSVColumns
+	if _, err := fmt.Fprintf(w, "%s\n", strings.Join(columns, "\t")); err != nil {
+		return err
+	}
+	var walk func(entries []*Entry) error
+	walk = func(entries []*Entry) error {
+		for _, e := range entries {
+			row := make([]string, len(columns))
+			for i, col := range columns {
+				row[i] = csvColumnValue(e, col)
+			}
+			if _, err := fmt.Fprintf(w, "%s\n", strings.Join(row, "\t")); err != nil {
+				return err
+			}
+			if err := walk(e.Children); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+	return walk(roots)
 }

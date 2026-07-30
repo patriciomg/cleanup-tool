@@ -221,3 +221,63 @@ func TestCSVExporterInvalidColumn(t *testing.T) {
 		t.Fatal("expected error for invalid column, got nil")
 	}
 }
+
+func TestExportMarkdown(t *testing.T) {
+	root := &Entry{Name: "root", Path: "/tmp/root", IsDir: true, Size: 100}
+	child := &Entry{Name: "child.txt", Path: "/tmp/root/child.txt", Size: 100}
+	root.AddChild(child)
+
+	var buf bytes.Buffer
+	if err := Export([]*Entry{root}, &buf, "md"); err != nil {
+		t.Fatalf("Export Markdown error: %v", err)
+	}
+	out := buf.String()
+	if !strings.Contains(out, "| Path |") {
+		t.Fatalf("expected Markdown header to contain Path column")
+	}
+	if !strings.Contains(out, "/tmp/root/child.txt") {
+		t.Fatalf("expected Markdown to contain child path")
+	}
+	if strings.Contains(out, "child.txt|") {
+		t.Fatalf("expected Markdown table pipes to be escaped")
+	}
+}
+
+func TestExportHTML(t *testing.T) {
+	root := &Entry{Name: "root", Path: "/tmp/root", IsDir: true, Size: 100}
+	child := &Entry{Name: "child.txt", Path: "/tmp/root/child.txt", Size: 100}
+	root.AddChild(child)
+
+	var buf bytes.Buffer
+	if err := Export([]*Entry{root}, &buf, "html"); err != nil {
+		t.Fatalf("Export HTML error: %v", err)
+	}
+	out := buf.String()
+	if !strings.Contains(out, "<table>") {
+		t.Fatalf("expected HTML to contain table")
+	}
+	if !strings.Contains(out, "/tmp/root/child.txt") {
+		t.Fatalf("expected HTML to contain child path")
+	}
+}
+
+func TestExportText(t *testing.T) {
+	root := &Entry{Name: "root", Path: "/tmp/root", IsDir: true, Size: 100}
+	child := &Entry{Name: "child.txt", Path: "/tmp/root/child.txt", Size: 100}
+	root.AddChild(child)
+
+	var buf bytes.Buffer
+	if err := Export([]*Entry{root}, &buf, "txt"); err != nil {
+		t.Fatalf("Export text error: %v", err)
+	}
+	out := buf.String()
+	if !strings.Contains(out, "Path\tName\tSize") {
+		t.Fatalf("expected text header with columns")
+	}
+	if !strings.Contains(out, "/tmp/root\troot\t100") {
+		t.Fatalf("expected text to contain root path and size")
+	}
+	if !strings.Contains(out, "/tmp/root/child.txt\tchild.txt\t100") {
+		t.Fatalf("expected text to contain child path and size")
+	}
+}
