@@ -1256,6 +1256,7 @@ The following checks run on every pull request:
 - A Homebrew formula audit against the [`patriciomg/homebrew-cleanup-tool`](https://github.com/patriciomg/homebrew-cleanup-tool) tap.
 - **`test-benchmark-format`** — verifies that the `-benchmark` output format has not changed.
 - **`test-help-format`** — verifies that the CLI `-h`/`-help` output format has not changed.
+- **`test-export-format`** — verifies that the JSON, CSV, TSV, and YAML export output formats have not changed.
 
 #### `test-benchmark-format`
 
@@ -1310,6 +1311,39 @@ go build -o cleanup-tool ./cmd/cleanup-tool
 ```
 
 The snapshot is the canonical reference for the help text; update the CLI flags table in README.md to match it, then commit both files together.
+
+#### `test-export-format`
+
+This job ensures the export examples in the [Exporting results](#exporting-results) section stay in sync with the code.
+
+What it does:
+
+1. Builds the `cleanup-tool` binary.
+2. Creates a deterministic sample directory using [`testdata/create-export-sample.sh`](testdata/create-export-sample.sh).
+3. Runs `./cleanup-tool -format <fmt> -stdout -paths /tmp/cleanup-export-sample-fmt` for `json`, `csv`, `tsv`, and `yaml`.
+4. Normalizes variable parts of the outputs (paths, timestamps, and file modes) using [`testdata/normalize-export.sh`](testdata/normalize-export.sh).
+5. Differs the normalized outputs against the snapshots in [`testdata/export-snapshots/`](testdata/export-snapshots/).
+
+If any format changes, the job fails with:
+
+```
+<fmt> export output format changed. Update testdata/export-snapshots/<fmt>.txt and the 'Exporting results' section in README.md.
+```
+
+To update the snapshots after changing an export format, regenerate them locally:
+
+```bash
+go build -o cleanup-tool ./cmd/cleanup-tool
+./testdata/create-export-sample.sh
+./cleanup-tool -format json -stdout -paths /tmp/cleanup-export-sample-fmt > export.json
+./cleanup-tool -format csv -stdout -paths /tmp/cleanup-export-sample-fmt > export.csv
+./cleanup-tool -format tsv -stdout -paths /tmp/cleanup-export-sample-fmt > export.tsv
+./cleanup-tool -format yaml -stdout -paths /tmp/cleanup-export-sample-fmt > export.yaml
+./testdata/normalize-export.sh json export.json > testdata/export-snapshots/json.txt
+./testdata/normalize-export.sh csv export.csv > testdata/export-snapshots/csv.txt
+./testdata/normalize-export.sh tsv export.tsv > testdata/export-snapshots/tsv.txt
+./testdata/normalize-export.sh yaml export.yaml > testdata/export-snapshots/yaml.txt
+```
 
 ## License
 

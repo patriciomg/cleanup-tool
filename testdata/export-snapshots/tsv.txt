@@ -1,0 +1,6 @@
+Path	Name	Size	Usage	ModTime	AccessTime	Mode	IsDir	Category	NumFiles	NumDirs	Scanned
+<SAMPLE_DIR>	cleanup-export-sample-fmt	24	0	<TIMESTAMP>	<TIMESTAMP>	<DIR_MODE>	true	unknown	3	1	true
+<SAMPLE_DIR>/archive.tar	archive.tar	0	0	<TIMESTAMP>	<TIMESTAMP>	<FILE_MODE>	false	archive	0	0	true
+<SAMPLE_DIR>/readme.txt	readme.txt	12	0	<TIMESTAMP>	<TIMESTAMP>	<FILE_MODE>	false	unknown	0	0	true
+<SAMPLE_DIR>/subdir	subdir	12	0	<TIMESTAMP>	<TIMESTAMP>	<DIR_MODE>	true	unknown	1	0	true
+<SAMPLE_DIR>/subdir/data.bin	data.bin	12	0	<TIMESTAMP>	<TIMESTAMP>	<FILE_MODE>	false	llm-model	0	0	true

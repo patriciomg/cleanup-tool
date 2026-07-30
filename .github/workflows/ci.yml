@@ -193,6 +193,49 @@ jobs:
             exit 1
           fi
 
+  test-export-format:
+    name: Verify export output formats
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Build binary
+        run: go build -o cleanup-tool ./cmd/cleanup-tool
+
+      - name: Create deterministic sample directory
+        run: ./testdata/create-export-sample.sh
+
+      - name: Generate and normalize export outputs
+        run: |
+          ./cleanup-tool -format json -stdout -paths /tmp/cleanup-export-sample-fmt > export.json
+          ./cleanup-tool -format csv -stdout -paths /tmp/cleanup-export-sample-fmt > export.csv
+          ./cleanup-tool -format tsv -stdout -paths /tmp/cleanup-export-sample-fmt > export.tsv
+          ./cleanup-tool -format yaml -stdout -paths /tmp/cleanup-export-sample-fmt > export.yaml
+          ./testdata/normalize-export.sh json export.json > normalized.json
+          ./testdata/normalize-export.sh csv export.csv > normalized.csv
+          ./testdata/normalize-export.sh tsv export.tsv > normalized.tsv
+          ./testdata/normalize-export.sh yaml export.yaml > normalized.yaml
+
+      - name: Compare with snapshots
+        run: |
+          failed=0
+          for fmt in json csv tsv yaml; do
+            if ! diff -u "testdata/export-snapshots/${fmt}.txt" "normalized.${fmt}"; then
+              echo "::error::${fmt} export output format changed. Update testdata/export-snapshots/${fmt}.txt and the 'Exporting results' section in README.md."
+              failed=1
+            fi
+          done
+          if [ $failed -ne 0 ]; then
+            exit 1
+          fi
+
   brew-audit:
     name: Audit Homebrew formula
     runs-on: macos-latest

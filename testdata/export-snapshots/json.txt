@@ -1,0 +1,76 @@
+[
+  {
+    "path": "<SAMPLE_DIR>",
+    "name": "cleanup-export-sample-fmt",
+    "size": 24,
+    "usage": 0,
+    "modTime": "<TIMESTAMP>",
+    "accessTime": "<TIMESTAMP>",
+    "mode": <DIR_MODE>,
+    "isDir": true,
+    "category": "unknown",
+    "children": [
+      {
+        "path": "<SAMPLE_DIR>/archive.tar",
+        "name": "archive.tar",
+        "size": 0,
+        "usage": 0,
+        "modTime": "<TIMESTAMP>",
+        "accessTime": "<TIMESTAMP>",
+        "mode": <FILE_MODE>,
+        "isDir": false,
+        "category": "archive",
+        "numFiles": 0,
+        "numDirs": 0,
+        "scanned": true
+      },
+      {
+        "path": "<SAMPLE_DIR>/readme.txt",
+        "name": "readme.txt",
+        "size": 12,
+        "usage": 0,
+        "modTime": "<TIMESTAMP>",
+        "accessTime": "<TIMESTAMP>",
+        "mode": <FILE_MODE>,
+        "isDir": false,
+        "category": "unknown",
+        "numFiles": 0,
+        "numDirs": 0,
+        "scanned": true
+      },
+      {
+        "path": "<SAMPLE_DIR>/subdir",
+        "name": "subdir",
+        "size": 12,
+        "usage": 0,
+        "modTime": "<TIMESTAMP>",
+        "accessTime": "<TIMESTAMP>",
+        "mode": <DIR_MODE>,
+        "isDir": true,
+        "category": "unknown",
+        "children": [
+          {
+            "path": "<SAMPLE_DIR>/subdir/data.bin",
+            "name": "data.bin",
+            "size": 12,
+            "usage": 0,
+            "modTime": "<TIMESTAMP>",
+            "accessTime": "<TIMESTAMP>",
+            "mode": <FILE_MODE>,
+            "isDir": false,
+            "category": "llm-model",
+            "numFiles": 0,
+            "numDirs": 0,
+            "scanned": true
+          }
+        ],
+        "numFiles": 1,
+        "numDirs": 0,
+        "scanned": true
+      }
+    ],
+    "numFiles": 3,
+    "numDirs": 1,
+    "scanned": true
+  }
+]

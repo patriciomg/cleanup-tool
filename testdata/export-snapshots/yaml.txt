@@ -1,0 +1,70 @@
+- path: <SAMPLE_DIR>
+  name: cleanup-export-sample-fmt
+  size: 24
+  usage: 0
+  modtime: <TIMESTAMP>
+  accesstime: <TIMESTAMP>
+  mode: <DIR_MODE>
+  isdir: true
+  category: unknown
+  children:
+    - path: <SAMPLE_DIR>/archive.tar
+      name: archive.tar
+      size: 0
+      usage: 0
+      modtime: <TIMESTAMP>
+      accesstime: <TIMESTAMP>
+      mode: <FILE_MODE>
+      isdir: false
+      category: archive
+      children: []
+      numfiles: 0
+      numdirs: 0
+      scanned: true
+      error: null
+    - path: <SAMPLE_DIR>/readme.txt
+      name: readme.txt
+      size: 12
+      usage: 0
+      modtime: <TIMESTAMP>
+      accesstime: <TIMESTAMP>
+      mode: <FILE_MODE>
+      isdir: false
+      category: unknown
+      children: []
+      numfiles: 0
+      numdirs: 0
+      scanned: true
+      error: null
+    - path: <SAMPLE_DIR>/subdir
+      name: subdir
+      size: 12
+      usage: 0
+      modtime: <TIMESTAMP>
+      accesstime: <TIMESTAMP>
+      mode: <DIR_MODE>
+      isdir: true
+      category: unknown
+      children:
+        - path: <SAMPLE_DIR>/subdir/data.bin
+          name: data.bin
+          size: 12
+          usage: 0
+          modtime: <TIMESTAMP>
+          accesstime: <TIMESTAMP>
+          mode: <FILE_MODE>
+          isdir: false
+          category: llm-model
+          children: []
+          numfiles: 0
+          numdirs: 0
+          scanned: true
+          error: null
+      numfiles: 1
+      numdirs: 0
+      scanned: true
+      error: null
+  numfiles: 3
+  numdirs: 1
+  scanned: true
+  error: null
