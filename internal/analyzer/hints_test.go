@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"testing"
 	"time"
+
+	"github.com/patriciomg/cleanup-tool/internal/categories"
 )
 
 func writeFile(t *testing.T, dir, name, data string) string {
@@ -106,6 +108,59 @@ func TestFindHintsWithOptions_DupHashNoneSkipsDuplicates(t *testing.T) {
 	}
 	if len(hints) != 0 {
 		t.Fatalf("DupHashNone should not produce any hints, got %d", len(hints))
+	}
+}
+
+func TestFindHintsWithOptions_AllCategoriesTogether(t *testing.T) {
+	tmp := t.TempDir()
+	now := time.Now()
+
+	// Old file: last touched more than 365 days ago.
+	oldPath := writeFile(t, tmp, "old.txt", "old content")
+	oldEntry := entryFor(oldPath, int64(len("old content")))
+	oldEntry.AccessTime = now.Add(-2 * 365 * 24 * time.Hour)
+	oldEntry.ModTime = oldEntry.AccessTime
+
+	// Log/cache file: classified as log/cache.
+	logPath := writeFile(t, tmp, "app.log", "log line")
+	logEntry := entryFor(logPath, int64(len("log line")))
+	logEntry.AccessTime = now
+	logEntry.ModTime = now
+	logEntry.Category = categories.LogCache
+
+	// Duplicate files.
+	dupData := "duplicate content"
+	dupAPath := writeFile(t, tmp, "dup_a.txt", dupData)
+	dupBPath := writeFile(t, tmp, "dup_b.txt", dupData)
+	dupA := entryFor(dupAPath, int64(len(dupData)))
+	dupB := entryFor(dupBPath, int64(len(dupData)))
+	dupA.AccessTime = now
+	dupA.ModTime = now
+	dupB.AccessTime = now
+	dupB.ModTime = now
+
+	root := &Entry{
+		Path:       tmp,
+		Name:       "tmp",
+		IsDir:      true,
+		AccessTime: now,
+		Children:   []*Entry{oldEntry, logEntry, dupA, dupB},
+	}
+
+	hints, err := FindHintsWithOptions(context.Background(), root, HintOptions{DupMode: DupHashSmart})
+	if err != nil {
+		t.Fatalf("FindHintsWithOptions: %v", err)
+	}
+
+	summary := SummarizeHints(hints)
+	if summary.Old != 1 {
+		t.Fatalf("expected 1 old hint, got %d", summary.Old)
+	}
+	if summary.LogCache != 1 {
+		t.Fatalf("expected 1 log/cache hint, got %d", summary.LogCache)
+	}
+	if summary.Duplicate != 2 {
+		t.Fatalf("expected 2 duplicate hints, got %d", summary.Duplicate)
 	}
 }
 
