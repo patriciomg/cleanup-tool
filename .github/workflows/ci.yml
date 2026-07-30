@@ -166,6 +166,33 @@ jobs:
             exit 1
           fi
 
+  test-help-format:
+    name: Verify CLI -help output format
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Build binary
+        run: go build -o cleanup-tool ./cmd/cleanup-tool
+
+      - name: Run -help and normalize output
+        run: |
+          ./cleanup-tool -h 2>&1 | sed 's/^Usage of .*:$/Usage of <binary>:/' > help.txt
+
+      - name: Compare with snapshot
+        run: |
+          if ! diff -u testdata/help-snapshot.txt help.txt; then
+            echo "::error::CLI help output format changed. Update testdata/help-snapshot.txt and the CLI flags table in README.md."
+            exit 1
+          fi
+
   brew-audit:
     name: Audit Homebrew formula
     runs-on: macos-latest

@@ -1255,6 +1255,7 @@ The following checks run on every pull request:
 - A release smoke test that builds the macOS universal binary, tarball, and checksums.
 - A Homebrew formula audit against the [`patriciomg/homebrew-cleanup-tool`](https://github.com/patriciomg/homebrew-cleanup-tool) tap.
 - **`test-benchmark-format`** — verifies that the `-benchmark` output format has not changed.
+- **`test-help-format`** — verifies that the CLI `-help`/`-h` output format has not changed.
 
 #### `test-benchmark-format`
 
@@ -1282,6 +1283,30 @@ go build -o cleanup-tool ./cmd/cleanup-tool
 ./cleanup-tool -benchmark -paths /tmp/cleanup-benchmark-sample | \
   sed -E 's/Total time: .*/Total time: <TIME>/; s/Avg throughput: .*/Avg throughput: <THROUGHPUT>/' \
   > testdata/benchmark-snapshot.txt
+```
+
+#### `test-help-format`
+
+This job ensures the [CLI flags](#cli-flags) table stays in sync with the actual `-help` output.
+
+What it does:
+
+1. Builds the `cleanup-tool` binary.
+2. Runs `./cleanup-tool -h` and captures the help output.
+3. Normalizes the binary path in the `Usage of ...:` line.
+4. Differs the normalized output against [`testdata/help-snapshot.txt`](testdata/help-snapshot.txt).
+
+If the help text changes, the job fails with:
+
+```
+CLI help output format changed. Update testdata/help-snapshot.txt and the CLI flags table in README.md.
+```
+
+To update the snapshot after changing flags or their descriptions, regenerate it locally:
+
+```bash
+go build -o cleanup-tool ./cmd/cleanup-tool
+./cleanup-tool -h 2>&1 | sed 's/^Usage of .*:$/Usage of <binary>:/' > testdata/help-snapshot.txt
 ```
 
 Then commit both the snapshot and any corresponding README changes.

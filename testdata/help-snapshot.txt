@@ -1,0 +1,27 @@
+Usage of <binary>:
+  -benchmark
+    	Benchmark scan and print throughput to stdout
+  -csv-columns string
+    	Comma-separated CSV/TSV column names (default: all columns)
+  -dup-mode string
+    	Duplicate detection mode: first10mb, sample, full, smart (default "smart")
+  -external string
+    	External drive directory for move action
+  -format string
+    	Export format: json, csv, tsv, yaml, md, html, txt (default: json; auto-detected from -out extension when not specified) (default "json")
+  -ignore-hidden
+    	Ignore hidden files and directories
+  -json
+    	Export scan results to stdout (non-interactive)
+  -out string
+    	Export scan results to the specified file (implies non-interactive)
+  -paths string
+    	Comma-separated paths to scan (default: ~)
+  -progress-interval int
+    	Report analyzer progress every N files (default 100)
+  -stdout
+    	Export scan results to stdout (works with any -format; alias for -json)
+  -tui-style string
+    	Interactive TUI style: terminal or dua (default "dua")
+  -version
+    	Show version
