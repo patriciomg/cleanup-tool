@@ -1244,6 +1244,48 @@ For the full release checklist, including GPG setup, see [`docs/releasing.md`](d
 
 Bug reports, feature requests, and pull requests are welcome. Please open an issue before major changes so we can agree on direction.
 
+### CI checks
+
+The following checks run on every pull request:
+
+- `go test ./...` and `go vet ./...` on Ubuntu and macOS.
+- Unit tests for the `actions` package both with and without `rsync` in PATH.
+- macOS integration tests for the `actions` package with a real `osascript` environment.
+- Docker client tests against a mock Docker daemon.
+- A release smoke test that builds the macOS universal binary, tarball, and checksums.
+- A Homebrew formula audit against the [`patriciomg/homebrew-cleanup-tool`](https://github.com/patriciomg/homebrew-cleanup-tool) tap.
+- **`test-benchmark-format`** — verifies that the `-benchmark` output format has not changed.
+
+#### `test-benchmark-format`
+
+This job ensures the benchmark output example in the [Benchmark mode](#benchmark-mode) section stays in sync with the code.
+
+What it does:
+
+1. Builds the `cleanup-tool` binary.
+2. Creates a deterministic sample directory using [`testdata/create-benchmark-sample.sh`](testdata/create-benchmark-sample.sh).
+3. Runs `./cleanup-tool -benchmark -paths /tmp/cleanup-benchmark-sample`.
+4. Normalizes variable parts of the output (`Total time` and `Avg throughput`).
+5. Differs the normalized output against [`testdata/benchmark-snapshot.txt`](testdata/benchmark-snapshot.txt).
+
+If the format changes, the job fails with:
+
+```
+Benchmark output format changed. Update testdata/benchmark-snapshot.txt and the 'Benchmark mode' section in README.md.
+```
+
+To update the snapshot after changing the benchmark output, regenerate it locally:
+
+```bash
+go build -o cleanup-tool ./cmd/cleanup-tool
+./testdata/create-benchmark-sample.sh
+./cleanup-tool -benchmark -paths /tmp/cleanup-benchmark-sample | \
+  sed -E 's/Total time: .*/Total time: <TIME>/; s/Avg throughput: .*/Avg throughput: <THROUGHPUT>/' \
+  > testdata/benchmark-snapshot.txt
+```
+
+Then commit both the snapshot and any corresponding README changes.
+
 ## License
 
 [MIT](LICENSE) © Pato
