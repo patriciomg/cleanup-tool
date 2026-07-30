@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 
 	"github.com/adrg/xdg"
+
+	"github.com/patriciomg/cleanup-tool/internal/deps"
 )
 
 const appName = "cleanup-tool"
@@ -25,6 +27,10 @@ type Config struct {
 	SortOrder      string `json:"sort_order,omitempty"`
 	// NotificationsEnabled controls whether macOS notifications are emitted.
 	NotificationsEnabled bool `json:"notifications_enabled"`
+
+	// DepsTargets is the list of dependency directory names used by the deps
+	// subcommand when no -targets flag is provided.
+	DepsTargets []string `json:"deps_targets,omitempty"`
 }
 
 func Default() *Config {
@@ -37,6 +43,7 @@ func Default() *Config {
 		ProgressInterval:     100,
 		SortOrder:            "size",
 		NotificationsEnabled: true,
+		DepsTargets:          deps.DefaultTargets(),
 	}
 }
 
@@ -80,6 +87,9 @@ func Load() (*Config, error) {
 func (c *Config) migrate() {
 	if c.SortOrder == "" {
 		c.SortOrder = "size"
+	}
+	if len(c.DepsTargets) == 0 {
+		c.DepsTargets = deps.DefaultTargets()
 	}
 	if c.Version < 2 {
 		// Notifications were previously always enabled; keep that behavior.

@@ -18,30 +18,33 @@ import (
 
 // handleDepsCmd dispatches the "deps" subcommand.
 func handleDepsCmd(args []string) {
+	cfg, err := config.Load()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "deps: config load error: %v\n", err)
+		os.Exit(1)
+	}
+
 	flagSet := flag.NewFlagSet("deps", flag.ContinueOnError)
 	flagSet.SetOutput(os.Stderr)
 
 	var pathsFlag, targetsFlag, sortFlag string
 	var ignoreHidden, jsonOut bool
 	flagSet.StringVar(&pathsFlag, "paths", "", "Comma-separated paths to scan (default: ~)")
-	flagSet.StringVar(&targetsFlag, "targets", strings.Join(deps.DefaultTargets(), ","), "Comma-separated dependency directory names to find")
+	flagSet.StringVar(&targetsFlag, "targets", strings.Join(cfg.DepsTargets, ","), "Comma-separated dependency directory names to find")
 	flagSet.StringVar(&sortFlag, "sort", "size", "Sort by: size, access, mod, path")
 	flagSet.BoolVar(&ignoreHidden, "ignore-hidden", false, "Ignore hidden files and directories")
 	flagSet.BoolVar(&jsonOut, "json", false, "Output results as JSON")
 
 	if err := flagSet.Parse(args); err != nil {
+		if err == flag.ErrHelp {
+			os.Exit(0)
+		}
 		fmt.Fprintf(os.Stderr, "deps: %v\n", err)
 		os.Exit(1)
 	}
 
 	if flagSet.NArg() > 0 {
 		fmt.Fprintf(os.Stderr, "deps: unexpected positional arguments: %v\n", flagSet.Args())
-		os.Exit(1)
-	}
-
-	cfg, err := config.Load()
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "deps: config load error: %v\n", err)
 		os.Exit(1)
 	}
 
