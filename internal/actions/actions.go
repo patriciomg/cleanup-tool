@@ -8,10 +8,15 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/patriciomg/cleanup-tool/internal/undo"
 )
+
+// osGetuid is an alias so tests can override the UID used for external-volume
+// Trash directories.
+var osGetuid = os.Getuid
 
 // Trash moves the given paths to the macOS Trash bin.
 func Trash(paths ...string) error {
@@ -42,18 +47,36 @@ func TrashWithDestWithOsascript(osascript string, paths ...string) ([]string, er
 	if len(paths) == 0 {
 		return nil, nil
 	}
-	trashDir := filepath.Join(os.Getenv("HOME"), ".Trash")
+	homeDir := os.Getenv("HOME")
+	uid := osGetuid()
 
-	before, err := readTrashDir(trashDir)
-	if err != nil {
-		return nil, err
+	// Capture source metadata and the correct Trash directory for each item.
+	// macOS uses ~/.Trash on the boot volume and /.Trashes/<uid> on other
+	// volumes, so we need to track each source independently.
+	srcInfos := make([]os.FileInfo, len(paths))
+	trashDirs := make([]string, len(paths))
+	uniqueTrashDirs := make(map[string]struct{})
+	for i, p := range paths {
+		info, _ := os.Stat(p)
+		srcInfos[i] = info
+		trashDirs[i] = trashDirFor(p, info, homeDir, uid)
+		uniqueTrashDirs[trashDirs[i]] = struct{}{}
+	}
+
+	beforeMaps := make(map[string]map[string]os.FileInfo)
+	for td := range uniqueTrashDirs {
+		m, err := readTrashDir(td)
+		if err != nil {
+			return nil, err
+		}
+		beforeMaps[td] = m
 	}
 
 	// Pre-compute the fallback destinations in case osascript fails or we are
 	// on a non-macOS system where the Trash directory is used directly.
 	fallback := make([]string, len(paths))
 	for i, p := range paths {
-		fallback[i] = filepath.Join(trashDir, filepath.Base(p))
+		fallback[i] = filepath.Join(trashDirs[i], filepath.Base(p))
 	}
 
 	// Use osascript so Finder handles the Trash correctly, including sound
@@ -65,10 +88,10 @@ func TrashWithDestWithOsascript(osascript string, paths ...string) ([]string, er
 	script := fmt.Sprintf("tell application \"Finder\" to delete {%s}", strings.Join(quoted, ", "))
 	cmd := exec.Command(osascript, "-e", script)
 	if err := cmd.Run(); err != nil {
-		// Fallback: move the items ourselves, resolving collisions so we don't
+			// Fallback: move the items ourselves, resolving collisions so we don't
 		// overwrite anything already in the Trash.
 		for i, p := range paths {
-			fallback[i] = freeTrashPath(trashDir, filepath.Base(p))
+			fallback[i] = freeTrashPath(trashDirs[i], filepath.Base(p))
 			if err := os.Rename(p, fallback[i]); err != nil {
 				return nil, err
 			}
@@ -76,15 +99,93 @@ func TrashWithDestWithOsascript(osascript string, paths ...string) ([]string, er
 		return fallback, nil
 	}
 
-	after, err := readTrashDir(trashDir)
-	if err != nil {
-		return fallback, nil
+	afterMaps := make(map[string]map[string]os.FileInfo)
+	for td := range uniqueTrashDirs {
+		m, err := readTrashDir(td)
+		if err != nil {
+			return fallback, nil
+		}
+		afterMaps[td] = m
 	}
 
+	// Match each source to its destination and remove the match from `after`
+	// so that two files with the same basename on the same volume do not end
+	// up sharing one Trash path.
 	for i, p := range paths {
-		fallback[i] = findTrashDest(trashDir, filepath.Base(p), before, after)
+		td := trashDirs[i]
+		fallback[i] = claimTrashDest(td, filepath.Base(p), srcInfos[i], beforeMaps[td], afterMaps[td])
 	}
 	return fallback, nil
+}
+
+// claimTrashDest finds the destination of a trashed item and removes the
+// matched candidate from `after` so the same Trash item is not claimed twice.
+// It falls back to the expected base name when no match can be found.
+func claimTrashDest(trashDir, base string, srcInfo os.FileInfo, before, after map[string]os.FileInfo) string {
+	dest := findTrashDest(trashDir, base, srcInfo, before, after)
+	matched := filepath.Base(dest)
+	if _, ok := after[matched]; ok {
+		if _, existed := before[matched]; !existed {
+			delete(after, matched)
+		}
+	}
+	return dest
+}
+
+// trashDirFor returns the correct macOS Trash directory for a source path.
+// Files on the boot volume use ~/.Trash; files on external volumes use
+// /.Trashes/<uid> on that volume.
+func trashDirFor(p string, info os.FileInfo, homeDir string, uid int) string {
+	homeTrash := filepath.Join(homeDir, ".Trash")
+	if info == nil {
+		return homeTrash
+	}
+
+	root, ok := volumeRoot(p)
+	if !ok {
+		return homeTrash
+	}
+	bootRoot, ok := volumeRoot("/")
+	if !ok {
+		return homeTrash
+	}
+	if root == bootRoot {
+		return homeTrash
+	}
+	return filepath.Join(root, ".Trashes", strconv.Itoa(uid))
+}
+
+// volumeRoot walks up a path until the device ID changes, returning the root of
+// the volume the path lives on. On macOS this is typically "/" for the boot
+// volume and "/Volumes/<name>" for an external drive.
+func volumeRoot(p string) (string, bool) {
+	info, err := os.Stat(p)
+	if err != nil {
+		return "", false
+	}
+	sys, ok := info.Sys().(*syscall.Stat_t)
+	if !ok {
+		return "", false
+	}
+	dev := sys.Dev
+
+	root := p
+	for {
+		parent := filepath.Dir(root)
+		if parent == root {
+			break
+		}
+		parentInfo, err := os.Stat(parent)
+		if err != nil {
+			break
+		}
+		parentSys, ok := parentInfo.Sys().(*syscall.Stat_t)
+		if !ok || parentSys.Dev != dev {
+			break
+		}
+		root = parent
+	}
+	return root, true
 }
 
 func quoteAppleScript(s string) string {
@@ -120,10 +221,14 @@ func readTrashDir(trashDir string) (map[string]os.FileInfo, error) {
 // findTrashDest returns the actual path of an item in the Trash after Finder
 // moved it, accounting for conflict renames such as "foo" -> "foo 1".
 //
+// srcInfo is the metadata captured before the item was trashed. It is used to
+// disambiguate when multiple conflict-renamed candidates exist (e.g. "foo 1"
+// vs "foo 2") by matching size and modification time.
+//
 // Note: this function compares a snapshot of the Trash taken before and after
 // the osascript call. If another process modifies the Trash between those two
 // snapshots, detection can be off. This is a best-effort approach.
-func findTrashDest(trashDir, base string, before, after map[string]os.FileInfo) string {
+func findTrashDest(trashDir, base string, srcInfo os.FileInfo, before, after map[string]os.FileInfo) string {
 	// If the exact base is present now and was not there before, that's the
 	// item we are looking for.
 	if _, ok := after[base]; ok {
@@ -148,8 +253,23 @@ func findTrashDest(trashDir, base string, before, after map[string]os.FileInfo) 
 		return filepath.Join(trashDir, base)
 	}
 
-	// Pick the newest candidate; tie-break by name to keep the result
-	// deterministic when two candidates share the same modification time.
+	// If we have the original metadata, prefer the candidate whose size and
+	// modification time matches the source. Finder preserves both when moving an
+	// item to the Trash, so this is the most reliable way to pair them.
+	if srcInfo != nil {
+		wantSize := srcInfo.Size()
+		wantModTime := srcInfo.ModTime()
+		for _, name := range candidates {
+			if info := after[name]; info != nil {
+				if info.Size() == wantSize && info.ModTime().Equal(wantModTime) {
+					return filepath.Join(trashDir, name)
+				}
+			}
+		}
+	}
+
+	// Fallback: pick the newest candidate; tie-break by name to keep the
+	// result deterministic when two candidates share the same modification time.
 	sort.Slice(candidates, func(i, j int) bool {
 		var ti, tj time.Time
 		if info := after[candidates[i]]; info != nil {
@@ -297,6 +417,14 @@ func Restore(trashPath, originalPath string) error {
 	}
 	if _, err := os.Stat(trashPath); err != nil {
 		return fmt.Errorf("item not in trash: %w", err)
+	}
+	// If the original location has been reused, do not overwrite the user's new
+	// file. Instead, move it aside with a timestamped suffix before restoring.
+	if _, err := os.Stat(originalPath); err == nil {
+		backup := fmt.Sprintf("%s-restored-%d", originalPath, time.Now().UnixNano())
+		if err := os.Rename(originalPath, backup); err != nil {
+			return fmt.Errorf("backup existing destination: %w", err)
+		}
 	}
 	if err := os.Rename(trashPath, originalPath); err != nil {
 		return fmt.Errorf("restore failed: %w", err)

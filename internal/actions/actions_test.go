@@ -77,14 +77,14 @@ func TestFindTrashDest(t *testing.T) {
 		after[name] = info
 	}
 
-	got := findTrashDest(dir, "foo.txt", before, after)
+	got := findTrashDest(dir, "foo.txt", nil, before, after)
 	if got != filepath.Join(dir, "foo.txt") {
 		t.Fatalf("expected %s, got %s", filepath.Join(dir, "foo.txt"), got)
 	}
 
 	// Now pretend "foo.txt" already existed in the Trash.
 	before["foo.txt"] = after["foo.txt"]
-	got = findTrashDest(dir, "foo.txt", before, after)
+	got = findTrashDest(dir, "foo.txt", nil, before, after)
 	if got != filepath.Join(dir, "foo 1.txt") {
 		t.Fatalf("expected %s, got %s", filepath.Join(dir, "foo 1.txt"), got)
 	}
@@ -113,7 +113,7 @@ func TestFindTrashDestPrefersNewest(t *testing.T) {
 		after[name] = info
 	}
 
-	got := findTrashDest(dir, "foo.txt", before, after)
+	got := findTrashDest(dir, "foo.txt", nil, before, after)
 	if got != newer {
 		t.Fatalf("expected newest %s, got %s", newer, got)
 	}
@@ -141,6 +141,99 @@ func readFile(t *testing.T, path string) string {
 		t.Fatalf("read file %s: %v", path, err)
 	}
 	return string(data)
+}
+
+func TestFindTrashDestConsumesCandidates(t *testing.T) {
+	dir := t.TempDir()
+	before := map[string]os.FileInfo{}
+
+	// Simulate two distinct source files with the same basename "foo.txt" that
+	// ended up as "foo.txt" and "foo 1.txt" in the Trash.
+	writeFile(t, filepath.Join(dir, "foo.txt"), "first")
+	writeFile(t, filepath.Join(dir, "foo 1.txt"), "second")
+
+	after := map[string]os.FileInfo{}
+	for _, name := range []string{"foo.txt", "foo 1.txt"} {
+		info, err := os.Stat(filepath.Join(dir, name))
+		if err != nil {
+			t.Fatalf("stat %s: %v", name, err)
+		}
+		after[name] = info
+	}
+
+	first := findTrashDest(dir, "foo.txt", nil, before, after)
+	if first != filepath.Join(dir, "foo.txt") {
+		t.Fatalf("expected first match %s, got %s", filepath.Join(dir, "foo.txt"), first)
+	}
+
+	// Simulate the caller consuming the match so the next same-named source
+	// gets the remaining candidate.
+	delete(after, "foo.txt")
+
+	second := findTrashDest(dir, "foo.txt", nil, before, after)
+	if second != filepath.Join(dir, "foo 1.txt") {
+		t.Fatalf("expected second match %s, got %s", filepath.Join(dir, "foo 1.txt"), second)
+	}
+}
+
+func TestFindTrashDestMatchesMetadata(t *testing.T) {
+	dir := t.TempDir()
+	before := map[string]os.FileInfo{}
+
+	// Create two conflict candidates; the newer one should NOT be the match
+	// because the original metadata matches the older candidate.
+	older := filepath.Join(dir, "foo 1.txt")
+	newer := filepath.Join(dir, "foo 2.txt")
+	writeFile(t, older, "match")
+	writeFile(t, newer, "mismatch")
+	if err := os.Chtimes(older, time.Now(), time.Now().Add(-time.Hour)); err != nil {
+		t.Fatalf("Chtimes: %v", err)
+	}
+
+	after := map[string]os.FileInfo{}
+	for _, name := range []string{"foo 1.txt", "foo 2.txt"} {
+		info, err := os.Stat(filepath.Join(dir, name))
+		if err != nil {
+			t.Fatalf("stat %s: %v", name, err)
+		}
+		after[name] = info
+	}
+
+	// Build a fake FileInfo that matches the older candidate.
+	stat, err := os.Stat(older)
+	if err != nil {
+		t.Fatalf("stat older: %v", err)
+	}
+
+	got := findTrashDest(dir, "foo.txt", stat, before, after)
+	if got != older {
+		t.Fatalf("expected metadata match %s, got %s", older, got)
+	}
+}
+
+func TestRestoreAvoidsOverwrite(t *testing.T) {
+	trash := filepath.Join(t.TempDir(), "trash.txt")
+	original := filepath.Join(t.TempDir(), "original.txt")
+	writeFile(t, trash, "trashed")
+	writeFile(t, original, "replaced")
+
+	if err := Restore(trash, original); err != nil {
+		t.Fatalf("Restore failed: %v", err)
+	}
+
+	if readFile(t, original) != "trashed" {
+		t.Fatalf("expected original to contain trashed content")
+	}
+	matches, err := filepath.Glob(original + "-restored-*")
+	if err != nil {
+		t.Fatalf("glob failed: %v", err)
+	}
+	if len(matches) != 1 {
+		t.Fatalf("expected one backup file, got %d", len(matches))
+	}
+	if readFile(t, matches[0]) != "replaced" {
+		t.Fatalf("expected backup to contain original content")
+	}
 }
 
 func TestMoveBackSourceMissing(t *testing.T) {
@@ -516,6 +609,98 @@ func TestUndoWithRsyncFake(t *testing.T) {
 	}
 	if _, err := os.Stat(original); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("expected original to remain unrestored when rsync fails")
+	}
+}
+
+func TestVolumeRoot(t *testing.T) {
+	root, ok := volumeRoot("/")
+	if !ok {
+		t.Fatalf("volumeRoot(/) failed")
+	}
+	if root != "/" {
+		t.Fatalf("expected volume root of / to be /, got %s", root)
+	}
+
+	tmp := t.TempDir()
+	root, ok = volumeRoot(tmp)
+	if !ok {
+		t.Fatalf("volumeRoot(%s) failed", tmp)
+	}
+	if root != "/" {
+		t.Fatalf("expected volume root of temp dir to be boot root, got %s", root)
+	}
+}
+
+func TestTrashDirForBootVolume(t *testing.T) {
+	tmp := t.TempDir()
+	info, err := os.Stat(tmp)
+	if err != nil {
+		t.Fatalf("stat temp dir: %v", err)
+	}
+	t.Setenv("HOME", "/tmp/fakehome")
+	got := trashDirFor(tmp, info, "/tmp/fakehome", 501)
+	if got != "/tmp/fakehome/.Trash" {
+		t.Fatalf("expected boot-volume trash dir, got %s", got)
+	}
+}
+
+func TestTrashWithDestFallbackSameNamedFiles(t *testing.T) {
+	// Use a fresh HOME so the test does not touch the user's real Trash.
+	homeDir := t.TempDir()
+	t.Setenv("HOME", homeDir)
+
+	// Use a fake osascript that always fails so the fallback path is exercised.
+	fakeOsascript := filepath.Join(t.TempDir(), "osascript")
+	script := "#!/bin/sh\necho 'osascript failed' >&2\nexit 1\n"
+	if err := os.WriteFile(fakeOsascript, []byte(script), 0o755); err != nil {
+		t.Fatalf("write fake osascript: %v", err)
+	}
+
+	tmp := t.TempDir()
+	dir1 := filepath.Join(tmp, "a")
+	dir2 := filepath.Join(tmp, "b")
+	if err := os.MkdirAll(dir1, 0o755); err != nil {
+		t.Fatalf("create dir1: %v", err)
+	}
+	if err := os.MkdirAll(dir2, 0o755); err != nil {
+		t.Fatalf("create dir2: %v", err)
+	}
+
+	p1 := filepath.Join(dir1, "foo.txt")
+	p2 := filepath.Join(dir2, "foo.txt")
+	writeFile(t, p1, "first")
+	writeFile(t, p2, "second")
+
+	dests, err := TrashWithDestWithOsascript(fakeOsascript, p1, p2)
+	if err != nil {
+		t.Fatalf("TrashWithDestWithOsascript failed: %v", err)
+	}
+
+	if len(dests) != 2 {
+		t.Fatalf("expected 2 destinations, got %d", len(dests))
+	}
+	if dests[0] == dests[1] {
+		t.Fatalf("expected distinct destinations, both got %s", dests[0])
+	}
+
+	// The first file should land at the base name; the second should be renamed
+	// to avoid a collision.
+	if filepath.Base(dests[0]) != "foo.txt" {
+		t.Fatalf("expected first destination base to be foo.txt, got %s", filepath.Base(dests[0]))
+	}
+	if filepath.Base(dests[1]) != "foo 1.txt" {
+		t.Fatalf("expected second destination base to be 'foo 1.txt', got %s", filepath.Base(dests[1]))
+	}
+
+	for _, p := range []string{p1, p2} {
+		if _, err := os.Stat(p); !os.IsNotExist(err) {
+			t.Fatalf("expected source %s to be removed", p)
+		}
+	}
+	for _, d := range dests {
+		if _, err := os.Stat(d); err != nil {
+			t.Fatalf("expected destination %s to exist: %v", d, err)
+		}
 	}
 }
 
