@@ -6,6 +6,7 @@ package dockeritems
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"sort"
 	"strings"
@@ -54,6 +55,7 @@ type Model struct {
 	selected       int
 	filter         string
 	groupByProject bool
+	showLabels     bool
 	itemToDelete   *docker.DockerItem
 	confirm        bool
 	msg            string
@@ -159,6 +161,8 @@ func (m *Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.cycleFilter()
 	case "g":
 		m.groupByProject = !m.groupByProject
+	case "i":
+		m.showLabels = !m.showLabels
 	case "d":
 		items := m.filteredItems()
 		if m.selected < len(items) {
@@ -437,12 +441,16 @@ func (m *Model) listView() string {
 		b.WriteString("\n" + m.msg + "\n")
 	}
 
-	// Passive details panel for the currently selected item.
+	// Passive details/labels panel for the currently selected item.
 	if len(items) > 0 && m.selected < len(items) {
-		b.WriteString(m.detailView(items[m.selected]))
+		if m.showLabels {
+			b.WriteString(m.labelsView(items[m.selected]))
+		} else {
+			b.WriteString(m.detailView(items[m.selected]))
+		}
 	}
 
-	hints := []string{"[↑/↓/j/k] nav", "[d] delete item", "[D] delete all dangling", "[f] filter", "[g] group", "[r] refresh", "[esc] back", "[q] quit"}
+	hints := []string{"[↑/↓/j/k] nav", "[d] delete item", "[D] delete all dangling", "[f] filter", "[g] group", "[i] labels", "[r] refresh", "[esc] back", "[q] quit"}
 	b.WriteString("\n" + common.FormatHelpBar(m.width, hints) + "\n")
 	return b.String()
 }
@@ -465,7 +473,28 @@ func (m *Model) detailView(it docker.DockerItem) string {
 		b.WriteString(fmt.Sprintf("Used by:  %s\n", common.Truncate(strings.Join(it.UsedBy, ", "), m.width-10)))
 	}
 	if len(it.Labels) > 0 {
-		b.WriteString(fmt.Sprintf("Labels:   %d\n", len(it.Labels)))
+		b.WriteString(fmt.Sprintf("Labels:   %d (press 'i')\n", len(it.Labels)))
+	} else {
+		b.WriteString("Labels:   none\n")
+	}
+	return b.String()
+}
+
+func (m *Model) labelsView(it docker.DockerItem) string {
+	var b strings.Builder
+	b.WriteString(common.BarStyle.Render(strings.Repeat("─", m.width)) + "\n")
+	b.WriteString(common.HeaderStyle.Render("Labels") + "\n")
+	if len(it.Labels) == 0 {
+		b.WriteString("No labels.\n")
+		return b.String()
+	}
+	data, err := json.MarshalIndent(it.Labels, "", "  ")
+	if err != nil {
+		b.WriteString("Error: " + err.Error() + "\n")
+		return b.String()
+	}
+	for _, line := range strings.Split(string(data), "\n") {
+		b.WriteString(common.Truncate(line, m.width-4) + "\n")
 	}
 	return b.String()
 }

@@ -705,6 +705,43 @@ func TestProjectDittoInGroupedView(t *testing.T) {
 	}
 }
 
+func TestToggleLabelsView(t *testing.T) {
+	m := New(nil, "images", 80, 24)
+	m.items = []docker.DockerItem{
+		{Type: "image", ID: "a", Name: "a", Labels: map[string]string{"key": "value"}},
+	}
+	if m.showLabels {
+		t.Fatal("expected showLabels to be false initially")
+	}
+	m, _ = tuitest.SendKey(m, 'i')
+	if !m.showLabels {
+		t.Fatal("expected showLabels to be true after pressing 'i'")
+	}
+	view := m.View()
+	if !strings.Contains(view, "Labels") {
+		t.Fatal("expected labels view to show 'Labels' header")
+	}
+	if !strings.Contains(view, "\"key\": \"value\"") {
+		t.Fatal("expected labels view to show the JSON label content")
+	}
+	m, _ = tuitest.SendKey(m, 'i')
+	if m.showLabels {
+		t.Fatal("expected showLabels to be false after pressing 'i' again")
+	}
+}
+
+func TestLabelsViewEmpty(t *testing.T) {
+	m := New(nil, "images", 80, 24)
+	m.items = []docker.DockerItem{
+		{Type: "image", ID: "a", Name: "a"},
+	}
+	m.showLabels = true
+	view := m.View()
+	if !strings.Contains(view, "No labels") {
+		t.Fatal("expected labels view to show 'No labels' when item has no labels")
+	}
+}
+
 func TestConfirmViewShowsSafety(t *testing.T) {
 	m := New(nil, "images", 80, 24)
 	m.items = []docker.DockerItem{
