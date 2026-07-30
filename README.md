@@ -171,6 +171,20 @@ make watch-test
 | `-csv-columns` | Comma-separated CSV/TSV column names | `""` |
 | `-tui-style` | Interactive TUI style: `terminal` or `dua` | `dua` |
 
+### `deps` subcommand flags
+
+```bash
+./cleanup-tool deps [flags]
+```
+
+| Flag | Description | Default |
+|------|-------------|---------|
+| `-paths` | Comma-separated paths to scan | `~` |
+| `-targets` | Comma-separated dependency directory names to find (uses `deps_targets` from config, then built-in defaults) | `config.DepsTargets`, then built-in defaults |
+| `-sort` | Sort results by `size`, `access`, `mod`, or `path` | `size` |
+| `-ignore-hidden` | Skip hidden files and directories | `false` |
+| `-json` | Output results as JSON instead of a table | `false` |
+
 ## Exporting results
 
 You can export a non-interactive scan to several formats. The format is controlled by `-format` and can be auto-detected from the `-out` file extension.
