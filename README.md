@@ -229,45 +229,141 @@ By default, `deps` searches the built-in list of dependency directory names. You
 
 You can export a non-interactive scan to several formats. The format is controlled by `-format` and can be auto-detected from the `-out` file extension.
 
+The examples below were produced by scanning a small sample directory with a few files. Your output will vary depending on the scanned paths.
+
 ### JSON
 
 ```bash
-# Auto-detected from .json extension
-./cleanup-tool -out /tmp/scan.json -paths /tmp
-
-# Or explicitly
-./cleanup-tool -format json -out /tmp/scan.json -paths /tmp
+./cleanup-tool -format json -stdout -paths /tmp/cleanup-export-sample
 ```
+
+```json
+[
+  {
+    "path": "/tmp/cleanup-export-sample",
+    "name": "cleanup-export-sample",
+    "size": 5132,
+    "usage": 0,
+    "modTime": "2026-07-30T12:27:02.599453107+02:00",
+    "accessTime": "2026-07-30T12:27:02.594869761+02:00",
+    "mode": 2147484141,
+    "isDir": true,
+    "category": "unknown",
+    "children": [
+      {
+        "path": "/tmp/cleanup-export-sample/archive.tar",
+        "name": "archive.tar",
+        "size": 2048,
+        "usage": 0,
+        "modTime": "2026-07-30T12:27:02.599513607+02:00",
+        "accessTime": "2026-07-30T12:27:02.599446399+02:00",
+        "mode": 420,
+        "isDir": false,
+        "category": "archive",
+        "numFiles": 0,
+        "numDirs": 0,
+        "scanned": true
+      }
+    ]
+  }
+]
+```
+
+> The JSON output contains every field of every entry, including nested `children`. Use a tool like `jq` to filter it.
 
 ### CSV
 
 ```bash
-# Auto-detected from .csv extension
-./cleanup-tool -out /tmp/scan.csv -paths /tmp
+./cleanup-tool -format csv -stdout -paths /tmp/cleanup-export-sample
+```
 
-# Select only specific columns
-./cleanup-tool -format csv -csv-columns "Name,Size" -out /tmp/scan.csv -paths /tmp
+```
+Path,Name,Size,Usage,ModTime,AccessTime,Mode,IsDir,Category,NumFiles,NumDirs,Scanned
+/tmp/cleanup-export-sample,cleanup-export-sample,5132,0,2026-07-30T12:27:02,2026-07-30T12:27:02,drwxr-xr-x,true,unknown,3,1,true
+/tmp/cleanup-export-sample/archive.tar,archive.tar,2048,0,2026-07-30T12:27:02,2026-07-30T12:27:02,-rw-r--r--,false,archive,0,0,true
+/tmp/cleanup-export-sample/readme.txt,readme.txt,12,0,2026-07-30T12:27:02,2026-07-30T12:27:02,-rw-r--r--,false,unknown,0,0,true
+/tmp/cleanup-export-sample/subdir,subdir,3072,0,2026-07-30T12:27:02,2026-07-30T12:27:02,drwxr-xr-x,true,unknown,1,0,true
+/tmp/cleanup-export-sample/subdir/data.bin,data.bin,3072,0,2026-07-30T12:27:02,2026-07-30T12:27:02,-rw-r--r--,false,llm-model,0,0,true
 ```
 
 ### TSV
 
 ```bash
-./cleanup-tool -format tsv -out /tmp/scan.tsv -paths /tmp
+./cleanup-tool -format tsv -stdout -paths /tmp/cleanup-export-sample
+```
+
+```
+Path	Name	Size	Usage	ModTime	AccessTime	Mode	IsDir	Category	NumFiles	NumDirs	Scanned
+/tmp/cleanup-export-sample	cleanup-export-sample	5132	0	2026-07-30T12:27:02	2026-07-30T12:27:02	drwxr-xr-x	true	unknown	3	1	true
+/tmp/cleanup-export-sample/archive.tar	archive.tar	2048	0	2026-07-30T12:27:02	2026-07-30T12:27:02	-rw-r--r--	false	archive	0	0	true
+/tmp/cleanup-export-sample/readme.txt	readme.txt	12	0	2026-07-30T12:27:02	2026-07-30T12:27:02	-rw-r--r--	false	unknown	0	0	true
+/tmp/cleanup-export-sample/subdir	subdir	3072	0	2026-07-30T12:27:02	2026-07-30T12:27:02	drwxr-xr-x	true	unknown	1	0	true
+/tmp/cleanup-export-sample/subdir/data.bin	data.bin	3072	0	2026-07-30T12:27:02	2026-07-30T12:27:02	-rw-r--r--	false	llm-model	0	0	true
 ```
 
 ### YAML
 
 ```bash
-./cleanup-tool -format yaml -out /tmp/scan.yaml -paths /tmp
+./cleanup-tool -format yaml -stdout -paths /tmp/cleanup-export-sample
 ```
 
-### Stream to stdout
+```yaml
+- path: /tmp/cleanup-export-sample
+  name: cleanup-export-sample
+  size: 5132
+  usage: 0
+  modtime: 2026-07-30T12:27:02.599453107+02:00
+  accesstime: 2026-07-30T12:27:02.945488246+02:00
+  mode: 2147484141
+  isdir: true
+  category: unknown
+  children:
+    - path: /tmp/cleanup-export-sample/archive.tar
+      name: archive.tar
+      size: 2048
+      usage: 0
+      modtime: 2026-07-30T12:27:02.599513607+02:00
+      accesstime: 2026-07-30T12:27:02.599446399+02:00
+      mode: 420
+      isdir: false
+      category: archive
+      children: []
+      numfiles: 0
+      numdirs: 0
+      scanned: true
+      error: null
+```
 
-Use `-stdout` (or `-json`) to write the exported format to stdout instead of a file:
+> YAML keys are lower-cased because the YAML encoder normalizes struct tag names.
+
+### Selecting columns
+
+Both CSV and TSV support a subset of columns via `-csv-columns`:
 
 ```bash
-./cleanup-tool -stdout -format csv -paths /tmp > scan.csv
-./cleanup-tool -stdout -format yaml -paths /tmp
+./cleanup-tool -format csv -csv-columns "Name,Size,Category" -stdout -paths /tmp/cleanup-export-sample
+```
+
+```
+Name,Size,Category
+cleanup-export-sample,5132,unknown
+archive.tar,2048,archive
+readme.txt,12,unknown
+subdir,3072,unknown
+data.bin,3072,llm-model
+```
+
+Available columns: `Path`, `Name`, `Size`, `Usage`, `ModTime`, `AccessTime`, `Mode`, `IsDir`, `Category`, `NumFiles`, `NumDirs`, `Scanned`.
+
+### Writing to a file
+
+All of the above also work with `-out`. The format is auto-detected from the extension:
+
+```bash
+./cleanup-tool -out /tmp/scan.json -paths /tmp/cleanup-export-sample
+./cleanup-tool -out /tmp/scan.csv -paths /tmp/cleanup-export-sample
+./cleanup-tool -out /tmp/scan.tsv -paths /tmp/cleanup-export-sample
+./cleanup-tool -out /tmp/scan.yaml -paths /tmp/cleanup-export-sample
 ```
 
 ### Unsupported extensions
