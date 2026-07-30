@@ -356,7 +356,7 @@ See [Scheduling rules with launchd](#scheduling-rules-with-launchd) to automate 
 
 ## Scheduling rules with launchd
 
-The `schedule` subcommand turns any saved rule into a macOS `launchd` user agent in `~/Library/LaunchAgents`. This lets you run cleanups automatically — daily, weekly, on a fixed interval, or every time you log in — without keeping the app open.
+The `schedule` subcommand turns any saved rule into a macOS `launchd` user agent in `~/Library/LaunchAgents`. This lets you run cleanups automatically — daily, weekly, on a fixed interval, or every time you log in — without keeping the app open. The rule must already exist before you can schedule it; see [Saved rules](#saved-rules).
 
 ### Examples
 
