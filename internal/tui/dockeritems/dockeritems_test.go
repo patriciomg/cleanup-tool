@@ -57,11 +57,14 @@ func sendRefresh(t *testing.T, m *Model) *Model {
 // triggerDeleteError selects the current item, confirms deletion, and executes
 // the delete command while the mock is configured to fail. It returns the
 // updated model and the RefreshUsageMsg command emitted by the model.
-func triggerDeleteError(t *testing.T, m *Model, wantErr error) (*Model, tea.Cmd) {
+func triggerDeleteError(t *testing.T, m *Model, wantErr error, wantID string) (*Model, tea.Cmd) {
 	t.Helper()
 	m, _ = tuitest.SendKey(m, 'd')
 	if !m.confirm {
 		t.Fatal("expected confirm state after pressing 'd'")
+	}
+	if m.itemToDelete == nil || m.itemToDelete.ID != wantID {
+		t.Fatalf("expected itemToDelete set to %s, got %v", wantID, m.itemToDelete)
 	}
 	m, delCmd := tuitest.SendKey(m, 'y')
 	if delCmd == nil {
@@ -287,7 +290,7 @@ func TestDeleteKeyError(t *testing.T) {
 		m, _ = tuitest.Send(m, initCmd())
 	}
 
-	m, refreshCmd := triggerDeleteError(t, m, wantErr)
+	m, refreshCmd := triggerDeleteError(t, m, wantErr, "abc")
 	_ = assertCmdReturnsMsg[RefreshUsageMsg](t, refreshCmd)
 
 	wantMsg := "Delete failed: " + wantErr.Error()
@@ -313,6 +316,9 @@ func TestDeleteKeyFlow(t *testing.T) {
 	m, _ = m.UpdateModel(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'d'}})
 	if !m.confirm {
 		t.Fatal("expected confirm state after pressing 'd'")
+	}
+	if m.itemToDelete == nil || m.itemToDelete.ID != "abc" {
+		t.Fatalf("expected itemToDelete set to abc, got %v", m.itemToDelete)
 	}
 
 	// Press 'y' to confirm; a delete command should be returned.
@@ -498,7 +504,7 @@ func TestRefreshClearsStaleMessageAfterError(t *testing.T) {
 	assertItemIDs(t, m.items, "abc")
 
 	// Trigger a delete error, leaving a stale message and error on the model.
-	m, _ = triggerDeleteError(t, m, wantErr)
+	m, _ = triggerDeleteError(t, m, wantErr, "abc")
 	if !strings.Contains(m.msg, "Delete failed") {
 		t.Fatalf("expected delete error message, got %q", m.msg)
 	}
@@ -578,7 +584,7 @@ func TestViewNoLongerShowsDeleteErrorAfterRefresh(t *testing.T) {
 		m, _ = tuitest.Send(m, initCmd())
 	}
 
-	m, _ = triggerDeleteError(t, m, wantErr)
+	m, _ = triggerDeleteError(t, m, wantErr, "abc")
 
 	// The view should show the error.
 	if !strings.Contains(m.View(), "Error: delete failed") {
@@ -784,7 +790,7 @@ func TestDeleteCancelFlow(t *testing.T) {
 		t.Fatal("expected confirmation view to be shown after pressing 'd'")
 	}
 	if m.itemToDelete == nil || m.itemToDelete.ID != "abc" {
-		t.Fatalf("expected itemToDelete to be set to abc, got %v", m.itemToDelete)
+		t.Fatalf("expected itemToDelete set to abc, got %v", m.itemToDelete)
 	}
 
 	m, cmd := tuitest.SendKey(m, 'n')
@@ -795,13 +801,351 @@ func TestDeleteCancelFlow(t *testing.T) {
 		t.Fatal("expected confirm state to be dismissed after pressing 'n'")
 	}
 	if m.itemToDelete != nil {
-		t.Fatalf("expected itemToDelete to be nil after cancel, got %v", m.itemToDelete)
+		t.Fatalf("expected itemToDelete to be cleared after cancel, got %v", m.itemToDelete)
 	}
 	if strings.Contains(m.View(), "Confirm Docker item deletion") {
 		t.Fatal("expected confirmation view to be dismissed after pressing 'n'")
 	}
 	if len(mock.Deleted) != 0 {
 		t.Fatalf("expected no deletion after cancel, got %v", mock.Deleted)
+	}
+}
+
+func TestMarkItemWithSpace(t *testing.T) {
+	m := New(nil, "images", 80, 24)
+	m.items = []docker.DockerItem{
+		{Type: "image", ID: "a", Name: "a"},
+		{Type: "image", ID: "b", Name: "b"},
+	}
+
+	// Mark the first item.
+	m, _ = tuitest.SendKey(m, ' ')
+	if !m.marked["image:a"] {
+		t.Fatal("expected first image to be marked after pressing space")
+	}
+	if m.marked["image:b"] {
+		t.Fatal("expected second image to remain unmarked")
+	}
+
+	// Move down and mark the second item.
+	m, _ = tuitest.SendKey(m, 'j')
+	m, _ = tuitest.SendKey(m, ' ')
+	if !m.marked["image:b"] {
+		t.Fatal("expected second image to be marked after pressing space")
+	}
+
+	// Press space again on the second item to unmark it.
+	m, _ = tuitest.SendKey(m, ' ')
+	if m.marked["image:b"] {
+		t.Fatal("expected second image to be unmarked after pressing space again")
+	}
+	if !m.marked["image:a"] {
+		t.Fatal("expected first image to still be marked")
+	}
+}
+
+func TestMarksPersistAcrossFilters(t *testing.T) {
+	m := New(nil, "images", 80, 24)
+	m.items = []docker.DockerItem{
+		{Type: "image", ID: "u", Name: "used", InUse: true},
+		{Type: "image", ID: "d", Name: "dangling", Dangling: true},
+		{Type: "image", ID: "n", Name: "unused"},
+	}
+
+	// Mark the second (dangling) and third (unused) items.
+	m, _ = tuitest.SendKey(m, 'j')
+	m, _ = tuitest.SendKey(m, ' ')
+	m, _ = tuitest.SendKey(m, 'j')
+	m, _ = tuitest.SendKey(m, ' ')
+
+	if len(m.markedItems()) != 2 {
+		t.Fatalf("expected 2 marked items, got %d", len(m.markedItems()))
+	}
+
+	// Switch to the dangling filter: only the dangling item is visible,
+	// but both marks should still exist.
+	m, _ = tuitest.SendKey(m, 'f')
+	if m.filter != "dangling" {
+		t.Fatalf("expected filter 'dangling', got %s", m.filter)
+	}
+	if len(m.markedItems()) != 2 {
+		t.Fatalf("expected marks to persist across filters, got %d", len(m.markedItems()))
+	}
+}
+
+func TestBulkDeleteMarked(t *testing.T) {
+	danglingA := docker.DockerItem{Type: "image", ID: "d1", Name: "dangling-a", Dangling: true, Size: 50}
+	unused := docker.DockerItem{Type: "image", ID: "n", Name: "unused", Size: 20}
+	mock := &docker.MockClient{
+		Items: map[string][]docker.DockerItem{
+			"images": {
+				{Type: "image", ID: "u", Name: "used", InUse: true, Size: 100},
+				danglingA,
+				unused,
+			},
+		},
+	}
+	m := New(mock, "images", 80, 24)
+	if initCmd := m.Init(); initCmd != nil {
+		m, _ = tuitest.Send(m, initCmd())
+	}
+
+	// Mark dangling and unused items.
+	m, _ = tuitest.SendKey(m, 'j')
+	m, _ = tuitest.SendKey(m, ' ')
+	m, _ = tuitest.SendKey(m, 'j')
+	m, _ = tuitest.SendKey(m, ' ')
+	if len(m.markedItems()) != 2 {
+		t.Fatalf("expected 2 marked items, got %d", len(m.markedItems()))
+	}
+
+	// Press 'x' to delete marked.
+	m, _ = tuitest.SendKey(m, 'x')
+	if !m.confirm {
+		t.Fatal("expected confirm state after pressing 'x'")
+	}
+	if len(m.itemsToDelete) != 2 {
+		t.Fatalf("expected 2 items queued for bulk delete, got %v", m.itemsToDelete)
+	}
+	view := m.View()
+	if !strings.Contains(view, "Delete 2 marked items") {
+		t.Fatalf("expected bulk confirmation view, got:\n%s", view)
+	}
+
+	// Confirm.
+	m, delCmd := tuitest.SendKey(m, 'y')
+	if delCmd == nil {
+		t.Fatal("expected bulk delete command after confirming")
+	}
+	m, refreshCmd := tuitest.Send(m, delCmd())
+	_ = assertCmdReturnsMsg[RefreshUsageMsg](t, refreshCmd)
+
+	if len(mock.Deleted) != 2 {
+		t.Fatalf("expected 2 deleted items, got %v", mock.Deleted)
+	}
+	deleted := map[string]bool{}
+	for _, it := range mock.Deleted {
+		deleted[it.ID] = true
+	}
+	if !deleted["d1"] || !deleted["n"] {
+		t.Fatalf("expected d1 and n to be deleted, got %v", mock.Deleted)
+	}
+
+	// The used item should remain.
+	assertItemIDs(t, m.items, "u")
+
+	// Marks should be cleared for deleted items.
+	if len(m.marked) != 0 {
+		t.Fatalf("expected all marks to be cleared, got %v", m.marked)
+	}
+}
+
+func TestBulkDeleteCancelKeepsMarks(t *testing.T) {
+	m := New(nil, "images", 80, 24)
+	m.items = []docker.DockerItem{
+		{Type: "image", ID: "a", Name: "a"},
+		{Type: "image", ID: "b", Name: "b"},
+	}
+
+	m, _ = tuitest.SendKey(m, ' ')
+	m, _ = tuitest.SendKey(m, 'j')
+	m, _ = tuitest.SendKey(m, ' ')
+
+	m, _ = tuitest.SendKey(m, 'x')
+	if !m.confirm {
+		t.Fatal("expected confirm state after pressing 'x'")
+	}
+
+	m, cmd := tuitest.SendKey(m, 'n')
+	if cmd != nil {
+		t.Fatal("expected no command after cancel")
+	}
+	if m.confirm {
+		t.Fatal("expected confirm state to be dismissed")
+	}
+	if len(m.itemsToDelete) != 0 {
+		t.Fatalf("expected itemsToDelete to be cleared after cancel, got %v", m.itemsToDelete)
+	}
+	if len(m.marked) != 2 {
+		t.Fatalf("expected marks to be preserved after cancel, got %v", m.marked)
+	}
+}
+
+func TestBulkDeleteErrorStopsAndKeepsRemaining(t *testing.T) {
+	wantErr := errors.New("delete failed")
+	itemA := docker.DockerItem{Type: "image", ID: "a", Name: "a"}
+	itemB := docker.DockerItem{Type: "image", ID: "b", Name: "b"}
+	mock := &docker.MockClient{
+		Items: map[string][]docker.DockerItem{
+			"images": {itemA, itemB},
+		},
+		DeleteFunc: func(it docker.DockerItem) error {
+			if it.ID == "b" {
+				return wantErr
+			}
+			return nil
+		},
+	}
+	m := New(mock, "images", 80, 24)
+	if initCmd := m.Init(); initCmd != nil {
+		m, _ = tuitest.Send(m, initCmd())
+	}
+
+	// Mark both items and trigger bulk delete.
+	m, _ = tuitest.SendKey(m, ' ')
+	m, _ = tuitest.SendKey(m, 'j')
+	m, _ = tuitest.SendKey(m, ' ')
+	m, _ = tuitest.SendKey(m, 'x')
+
+	m, delCmd := tuitest.SendKey(m, 'y')
+	if delCmd == nil {
+		t.Fatal("expected bulk delete command after confirming")
+	}
+	m, _ = tuitest.Send(m, delCmd())
+	if m.err != wantErr {
+		t.Fatalf("expected err %v after bulk delete, got %v", wantErr, m.err)
+	}
+
+	// Item a was deleted; item b remains because deletion failed.
+	// The mock records all attempted deletions, so it will contain both
+	// a (succeeded) and b (failed).
+	if len(mock.Deleted) != 2 || mock.Deleted[0].ID != "a" || mock.Deleted[1].ID != "b" {
+		t.Fatalf("expected attempted deletions a then b, got %v", mock.Deleted)
+	}
+	assertItemIDs(t, m.items, "b")
+
+	// The mark for the deleted item should be removed, but the failed item
+	// should remain marked so the user can retry.
+	if m.marked["image:a"] {
+		t.Fatal("expected mark for a to be cleared")
+	}
+	if !m.marked["image:b"] {
+		t.Fatal("expected mark for b to remain after failure")
+	}
+}
+
+func TestNoMarksShowsMessage(t *testing.T) {
+	m := New(nil, "images", 80, 24)
+	m.items = []docker.DockerItem{
+		{Type: "image", ID: "a", Name: "a"},
+	}
+	m, _ = tuitest.SendKey(m, 'x')
+	if m.confirm {
+		t.Fatal("expected no confirm state when no items are marked")
+	}
+	if m.msg != "No items marked" {
+		t.Fatalf("expected 'No items marked' message, got %q", m.msg)
+	}
+}
+
+func TestRefreshClearsMarks(t *testing.T) {
+	mock := &docker.MockClient{
+		Items: map[string][]docker.DockerItem{
+			"images": {{Type: "image", ID: "old", Name: "old"}},
+		},
+	}
+	m := New(mock, "images", 80, 24)
+	if initCmd := m.Init(); initCmd != nil {
+		m, _ = tuitest.Send(m, initCmd())
+	}
+	// Mark the only item.
+	m, _ = tuitest.SendKey(m, ' ')
+	if len(m.marked) != 1 {
+		t.Fatalf("expected 1 mark before refresh, got %d", len(m.marked))
+	}
+	// Refreshing should clear the mark.
+	m = sendRefresh(t, m)
+	if len(m.marked) != 0 {
+		t.Fatalf("expected marks to be cleared after refresh, got %v", m.marked)
+	}
+}
+
+func TestBulkDeleteDeletesMarkedAcrossFilters(t *testing.T) {
+	mock := &docker.MockClient{
+		Items: map[string][]docker.DockerItem{
+			"images": {
+				{Type: "image", ID: "u", Name: "used", InUse: true},
+				{Type: "image", ID: "d", Name: "dangling", Dangling: true},
+				{Type: "image", ID: "n", Name: "unused"},
+			},
+		},
+	}
+	m := New(mock, "images", 80, 24)
+	if initCmd := m.Init(); initCmd != nil {
+		m, _ = tuitest.Send(m, initCmd())
+	}
+
+	// Mark dangling and unused items.
+	m, _ = tuitest.SendKey(m, 'j')
+	m, _ = tuitest.SendKey(m, ' ')
+	m, _ = tuitest.SendKey(m, 'j')
+	m, _ = tuitest.SendKey(m, ' ')
+
+	// Switch to the dangling filter so only one marked item is visible.
+	m, _ = tuitest.SendKey(m, 'f')
+	if m.filter != "dangling" {
+		t.Fatalf("expected filter 'dangling', got %s", m.filter)
+	}
+
+	// Pressing 'x' should still delete both marked items, not just the visible one.
+	m, _ = tuitest.SendKey(m, 'x')
+	if !strings.Contains(m.View(), "Delete 2 marked items") {
+		t.Fatal("expected bulk confirmation for 2 marked items")
+	}
+	m, delCmd := tuitest.SendKey(m, 'y')
+	if delCmd == nil {
+		t.Fatal("expected bulk delete command after confirming")
+	}
+	m, _ = tuitest.Send(m, delCmd())
+
+	deleted := map[string]bool{}
+	for _, it := range mock.Deleted {
+		deleted[it.ID] = true
+	}
+	if !deleted["d"] || !deleted["n"] {
+		t.Fatalf("expected both d and n to be deleted, got %v", mock.Deleted)
+	}
+	assertItemIDs(t, m.items, "u")
+}
+
+func TestClearMarksShortcut(t *testing.T) {
+	m := New(nil, "images", 80, 24)
+	m.items = []docker.DockerItem{
+		{Type: "image", ID: "a", Name: "a"},
+		{Type: "image", ID: "b", Name: "b"},
+	}
+
+	m, _ = tuitest.SendKey(m, ' ')
+	m, _ = tuitest.SendKey(m, 'j')
+	m, _ = tuitest.SendKey(m, ' ')
+	if len(m.marked) != 2 {
+		t.Fatalf("expected 2 marks before clear, got %d", len(m.marked))
+	}
+
+	m, _ = tuitest.SendKey(m, 'c')
+	if len(m.marked) != 0 {
+		t.Fatalf("expected all marks cleared after pressing 'c', got %v", m.marked)
+	}
+}
+
+func TestViewShowsMarkIndicators(t *testing.T) {
+	m := New(nil, "images", 80, 24)
+	m.items = []docker.DockerItem{
+		{Type: "image", ID: "a", Name: "a"},
+		{Type: "image", ID: "b", Name: "b"},
+	}
+	view := m.View()
+	if !strings.Contains(view, "Mark") {
+		t.Fatal("expected view header to contain Mark column")
+	}
+	if !strings.Contains(view, "[ ]") {
+		t.Fatal("expected view to show unmarked indicator [ ]")
+	}
+
+	m, _ = tuitest.SendKey(m, ' ')
+	view = m.View()
+	if !strings.Contains(view, "[x]") {
+		t.Fatal("expected view to show marked indicator [x] after pressing space")
 	}
 }
 

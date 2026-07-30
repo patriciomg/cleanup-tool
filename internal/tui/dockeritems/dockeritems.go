@@ -45,21 +45,29 @@ type pruneMsg struct {
 	err       error
 }
 
+type bulkDeleteMsg struct {
+	deleted []docker.DockerItem
+	failed  docker.DockerItem
+	err     error
+}
+
 // Model is a Bubble Tea sub-model for browsing and acting on Docker items.
 type Model struct {
-	client         docker.Client
-	category       string
-	width          int
-	height         int
-	items          []docker.DockerItem
-	selected       int
-	filter         string
+	client        docker.Client
+	category      string
+	width         int
+	height        int
+	items         []docker.DockerItem
+	selected      int
+	filter        string
 	groupByProject bool
-	showLabels     bool
-	itemToDelete   *docker.DockerItem
-	confirm        bool
-	msg            string
-	err            error
+	showLabels    bool
+	itemToDelete  *docker.DockerItem
+	itemsToDelete []docker.DockerItem
+	confirm       bool
+	marked        map[string]bool
+	msg           string
+	err           error
 }
 
 // New creates a new docker items model for the given client, category, and
@@ -71,6 +79,7 @@ func New(client docker.Client, category string, width, height int) *Model {
 		width:    width,
 		height:   height,
 		filter:   "all",
+		marked:   make(map[string]bool),
 	}
 }
 
@@ -99,6 +108,9 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		} else {
 			m.items = msg.items
 			m.selected = 0
+			// Refresh loads a fresh list; clear stale marks so deleted/reappearing
+			// items do not keep an old mark.
+			m.marked = make(map[string]bool)
 			m.err = nil
 		}
 		return m, nil
@@ -129,10 +141,54 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.selected = 0
 		}
 		return m, func() tea.Msg { return RefreshUsageMsg{} }
+	case bulkDeleteMsg:
+		var reclaimed int64
+		for _, it := range msg.deleted {
+			m.removeItem(it)
+			delete(m.marked, itemKey(it))
+			reclaimed += it.Size
+		}
+		if msg.err != nil {
+			m.err = msg.err
+			m.msg = fmt.Sprintf("Bulk delete stopped at %s %s: %v", msg.failed.Type, common.Truncate(msg.failed.Name, 30), msg.err)
+		} else {
+			m.msg = fmt.Sprintf("Deleted %d items (%s)", len(msg.deleted), analyzer.PrettySize(reclaimed))
+		}
+		return m, func() tea.Msg { return RefreshUsageMsg{} }
 	case tea.KeyMsg:
 		return m.handleKey(msg)
 	}
 	return m, nil
+}
+
+// itemKey returns a stable key for an item that is unique across Docker
+// resource types. IDs are only guaranteed to be unique within a category, so we
+// combine type and ID.
+func itemKey(it docker.DockerItem) string {
+	return it.Type + ":" + it.ID
+}
+
+func (m *Model) isMarked(it docker.DockerItem) bool {
+	return m.marked[itemKey(it)]
+}
+
+func (m *Model) toggleMark(it docker.DockerItem) {
+	key := itemKey(it)
+	if m.marked[key] {
+		delete(m.marked, key)
+	} else {
+		m.marked[key] = true
+	}
+}
+
+func (m *Model) markedItems() []docker.DockerItem {
+	var items []docker.DockerItem
+	for _, it := range m.items {
+		if m.marked[itemKey(it)] {
+			items = append(items, it)
+		}
+	}
+	return items
 }
 
 func (m *Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
@@ -163,6 +219,11 @@ func (m *Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.groupByProject = !m.groupByProject
 	case "i":
 		m.showLabels = !m.showLabels
+	case " ":
+		items := m.filteredItems()
+		if m.selected < len(items) {
+			m.toggleMark(items[m.selected])
+		}
 	case "d":
 		items := m.filteredItems()
 		if m.selected < len(items) {
@@ -170,6 +231,15 @@ func (m *Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.itemToDelete = &item
 			m.confirm = true
 		}
+	case "x":
+		if marked := m.markedItems(); len(marked) > 0 {
+			m.itemsToDelete = marked
+			m.confirm = true
+		} else {
+			m.msg = "No items marked"
+		}
+	case "c":
+		m.marked = make(map[string]bool)
 	case "D":
 		return m, m.pruneDangling
 	}
@@ -185,10 +255,16 @@ func (m *Model) handleConfirmKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.itemToDelete = nil
 			return m, m.deleteItem(item)
 		}
+		if len(m.itemsToDelete) > 0 {
+			items := m.itemsToDelete
+			m.itemsToDelete = nil
+			return m, m.deleteItems(items)
+		}
 		return m, nil
 	case "n", "esc":
 		m.confirm = false
 		m.itemToDelete = nil
+		m.itemsToDelete = nil
 		return m, nil
 	case "q", "ctrl+c":
 		return m, func() tea.Msg { return CloseMsg{Quit: true} }
@@ -210,6 +286,19 @@ func (m *Model) deleteItem(item docker.DockerItem) tea.Cmd {
 			return itemDeleteMsg{item: item, err: err}
 		}
 		return itemDeleteMsg{item: item}
+	}
+}
+
+func (m *Model) deleteItems(items []docker.DockerItem) tea.Cmd {
+	return func() tea.Msg {
+		var deleted []docker.DockerItem
+		for _, item := range items {
+			if err := m.client.DeleteItem(context.Background(), item); err != nil {
+				return bulkDeleteMsg{deleted: deleted, failed: item, err: err}
+			}
+			deleted = append(deleted, item)
+		}
+		return bulkDeleteMsg{deleted: deleted}
 	}
 }
 
@@ -405,7 +494,7 @@ func (m *Model) listView() string {
 		return b.String()
 	}
 
-	b.WriteString(fmt.Sprintf("%-30s %-10s %-10s %-20s %s\n", "Name", "Size", "Status", "Project", "ID"))
+	b.WriteString(fmt.Sprintf("%-4s %-30s %-10s %-10s %-20s %s\n", "Mark", "Name", "Size", "Status", "Project", "ID"))
 	start, end := m.visibleRangeWithSelected(len(items), m.selected)
 	prevProject := ""
 	if start > 0 {
@@ -424,7 +513,12 @@ func (m *Model) listView() string {
 		if it.Type == "volume" && it.Size == 0 {
 			size = "-"
 		}
-		line := fmt.Sprintf("%-30s %-10s %-10s %-20s %s",
+		marker := "[ ]"
+		if m.isMarked(it) {
+			marker = "[x]"
+		}
+		line := fmt.Sprintf("%-4s %-30s %-10s %-10s %-20s %s",
+			marker,
 			common.Truncate(it.Name, 29),
 			size,
 			statusStyle.Render(status),
@@ -450,7 +544,7 @@ func (m *Model) listView() string {
 		}
 	}
 
-	hints := []string{"[↑/↓/j/k] nav", "[d] delete item", "[D] delete all dangling", "[f] filter", "[g] group", "[i] labels", "[r] refresh", "[esc] back", "[q] quit"}
+	hints := []string{"[↑/↓/j/k] nav", "[space] mark", "[x] delete marked", "[c] clear marks", "[d] delete item", "[D] delete all dangling", "[f] filter", "[g] group", "[i] labels", "[r] refresh", "[esc] back", "[q] quit"}
 	b.WriteString("\n" + common.FormatHelpBar(m.width, hints) + "\n")
 	return b.String()
 }
@@ -501,18 +595,30 @@ func (m *Model) labelsView(it docker.DockerItem) string {
 
 func (m *Model) confirmView() string {
 	var b strings.Builder
-	b.WriteString(common.HeaderStyle.Render("Confirm Docker item deletion"))
+	title := "Confirm Docker items deletion"
+	if m.itemToDelete != nil {
+		title = "Confirm Docker item deletion"
+	}
+	b.WriteString(common.HeaderStyle.Render(title))
 	b.WriteString("\n\n")
 
-	if m.itemToDelete == nil {
+	if m.itemToDelete == nil && len(m.itemsToDelete) == 0 {
 		b.WriteString("No item selected.\n")
 		b.WriteString("\n" + common.FormatHelpBar(m.width, []string{"[esc] back"}) + "\n")
 		return b.String()
 	}
 
-	it := *m.itemToDelete
-	b.WriteString(fmt.Sprintf("Delete %s %s (%s)? This cannot be undone.\n\n", it.Type, it.Name, analyzer.PrettySize(it.Size)))
-	b.WriteString(common.DangerStyle.Render("Safety: ") + safetyText(it) + "\n\n")
+	if m.itemToDelete != nil {
+		it := *m.itemToDelete
+		b.WriteString(fmt.Sprintf("Delete %s %s (%s)? This cannot be undone.\n\n", it.Type, it.Name, analyzer.PrettySize(it.Size)))
+		b.WriteString(common.DangerStyle.Render("Safety: ") + safetyText(it) + "\n\n")
+	} else {
+		var total int64
+		for _, it := range m.itemsToDelete {
+			total += it.Size
+		}
+		b.WriteString(fmt.Sprintf("Delete %d marked items (%s)? This cannot be undone.\n\n", len(m.itemsToDelete), analyzer.PrettySize(total)))
+	}
 	b.WriteString(common.FormatHelpBar(m.width, []string{"[y] yes", "[n] no"}) + "\n")
 	return b.String()
 }
