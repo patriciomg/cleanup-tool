@@ -27,6 +27,7 @@ A fast, terminal-based disk cleanup tool tailored for macOS developers who work 
 - [Exporting results](#exporting-results)
 - [Saved rules](#saved-rules)
 - [Scheduling rules with launchd](#scheduling-rules-with-launchd)
+- [Docker disk usage](#docker-disk-usage)
 - [Configuration file](#configuration-file)
 - [Key bindings](#key-bindings)
 - [Demo](#demo)
@@ -435,6 +436,107 @@ When you run `schedule install`, `cleanup-tool` writes a plist like this:
 - **CI-style periodic cleanup** — use `--interval` on a shared Mac to keep build directories tidy during long-running tests.
 - **Safe automation** — always dry-run a rule with `rules run <name> --dry-run` before scheduling it.
 
+## Docker disk usage
+
+Press `D` in either the dua-style or terminal-style file browser to open the **Docker disk usage** view. It shows a four-category summary of images, containers, volumes, and build cache, and lets you prune entire categories or inspect and delete individual items.
+
+### Summary view
+
+When you first press `D`, the summary looks like this:
+
+```
+Docker Disk Usage
+
+Images       size: 24.7 GB  reclaimable: 18.2 GB  count: 12
+Containers   size: 0 B      reclaimable: 0 B       count: 0
+Volumes      size: 8.1 GB   reclaimable: 3.4 GB   count: 4
+Build Cache  size: 1.2 GB   reclaimable: 1.1 GB   count: 23
+
+Total used: 34.0 GB
+```
+
+From the summary you can:
+
+- **Prune an entire category** (for example, all dangling images or all stopped containers).
+- **Drill into a category** to browse individual images, containers, or volumes.
+
+### Per-item view
+
+Press `Enter` on a category to open the **per-item list**. Each row shows the item name, size, status, project label, and ID.
+
+Status colors help you decide what is safe to remove:
+
+- **Green / in-use** — the resource is referenced by a running container. Keep it unless you know it is stale.
+- **Yellow / unused** — the resource exists but is not referenced by anything. Usually safe to delete, but double-check the name before confirming.
+- **Red / dangling** — the resource is untagged, stopped, or unmounted. These are the safest to remove.
+
+The per-item list also supports:
+
+- **Filtering** with `f` to cycle through `all`, `dangling`, and `unused`.
+- **Grouping** with `g` to sort items by Docker Compose project label.
+- **Labels** with `i` to show the full label dump for the selected item.
+- **Refresh** with `r` to reload the latest state from Docker.
+
+### Examples
+
+Open the Docker summary while browsing:
+
+```bash
+./cleanup-tool
+# Then press D
+```
+
+Prune the selected category from the summary view:
+
+```text
+Select Images → press p → confirm with y
+```
+
+Delete a single dangling image from the per-item view:
+
+```text
+Select Images → Enter → press d on the dangling image → confirm with y
+```
+
+Delete all dangling items in the current category:
+
+```text
+Select Images → Enter → press D
+```
+
+### Keyboard shortcuts
+
+#### Docker summary view
+
+| Key | Action |
+|-----|--------|
+| ↑ / ↓ / j / k | Navigate |
+| Enter | Drill into selected category |
+| p | Prune selected category |
+| r | Refresh summary |
+| Esc / q | Back / quit |
+
+#### Docker items view
+
+| Key | Action |
+|-----|--------|
+| ↑ / ↓ / j / k | Navigate |
+| d | Delete selected item |
+| D | Delete all dangling items in the current category |
+| f | Cycle filter: all → dangling → unused |
+| g | Group by project label |
+| i | Show/hide labels panel |
+| r | Refresh list |
+| Esc | Back to summary |
+| q | Quit |
+
+### Safety notes
+
+- **Prunes are destructive.** `cleanup-tool` asks for confirmation before deleting individual items and before pruning an entire category.
+- **Running containers are protected.** You must stop or remove a running container before its image can be freed.
+- **Volumes used by containers are shown as in-use.** Delete the container first if you really want to reclaim the volume.
+- **Volumes report `0 B` size** in the per-item list because `docker volume ls` does not return size; only the summary row shows volume size from `docker system df`.
+
 ## Configuration file
 
 `cleanup-tool` reads its configuration from `~/.config/cleanup-tool/config.json`.
@@ -567,14 +669,29 @@ item. Select the terminal view with `-tui-style terminal`.
 | Esc | Back |
 | q | Quit |
 
-### Docker view
+### Docker summary view
 
 | Key | Action |
 |-----|--------|
 | ↑ / ↓ / j / k | Navigate |
-| p | Prune selected |
-| r | Refresh |
+| Enter | Drill into selected category |
+| p | Prune selected category |
+| r | Refresh summary |
 | Esc | Back |
+| q | Quit |
+
+### Docker items view
+
+| Key | Action |
+|-----|--------|
+| ↑ / ↓ / j / k | Navigate |
+| d | Delete selected item |
+| D | Delete all dangling items in the current category |
+| f | Cycle filter: all → dangling → unused |
+| g | Group by project label |
+| i | Show/hide labels panel |
+| r | Refresh list |
+| Esc | Back to summary |
 | q | Quit |
 
 ### Confirm prune
