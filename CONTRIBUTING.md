@@ -17,6 +17,8 @@ Thanks for taking the time to contribute! This document covers the workflow and 
 
 Be respectful, inclusive, and constructive. We welcome contributors of all experience levels. If you are unsure about a change, open an issue first so we can agree on direction.
 
+A dedicated Code of Conduct is available in [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md). All contributors and participants are expected to follow it.
+
 ## Development setup
 
 Requirements:
