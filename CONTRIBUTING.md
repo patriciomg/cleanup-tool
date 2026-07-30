@@ -143,7 +143,7 @@ ci: add export-format snapshot job
    go vet ./...
    ```
 
-5. **Update documentation** if your change affects CLI flags, config, output formats, or CI checks.
+5. **Update documentation** if your change affects CLI flags, config, output formats, analyzer hint logic (for example, the age check / "last touched" behavior documented in the [Performance](README.md#performance) section of `README.md`), or CI checks.
 6. **Open a pull request** with a clear description and link to the issue.
 7. **Wait for CI** to pass. PRs cannot be merged with failing checks.
 
