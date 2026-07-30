@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
@@ -248,6 +249,85 @@ func findModuleRoot() (string, error) {
 			return "", fmt.Errorf("could not find go.mod")
 		}
 		dir = parent
+	}
+}
+
+func TestVCSFlagOverridesConfig(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	root, err := findModuleRoot()
+	if err != nil {
+		t.Fatalf("finding module root: %v", err)
+	}
+	toolDir := filepath.Join(root, "cmd", "cleanup-tool")
+
+	tmp := t.TempDir()
+
+	// Set up a config directory with include_vcs: true.
+	configDir := filepath.Join(tmp, "config")
+	cfgPath := filepath.Join(configDir, "cleanup-tool", "config.json")
+	if err := os.MkdirAll(filepath.Dir(cfgPath), 0o755); err != nil {
+		t.Fatalf("mkdir config: %v", err)
+	}
+	if err := os.WriteFile(cfgPath, []byte(`{"version": 2, "include_vcs": true}`), 0o644); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+
+	// Create a small project with a .git directory.
+	projectDir := filepath.Join(tmp, "project")
+	if err := os.MkdirAll(filepath.Join(projectDir, ".git"), 0o755); err != nil {
+		t.Fatalf("mkdir project: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(projectDir, ".git", "HEAD"), []byte("ref: refs/heads/main\n"), 0o644); err != nil {
+		t.Fatalf("write git HEAD: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(projectDir, "readme.txt"), []byte("hello"), 0o644); err != nil {
+		t.Fatalf("write readme: %v", err)
+	}
+
+	run := func(extraArgs ...string) []byte {
+		args := append([]string{"run", ".", "-stdout", "-format", "json", "-dup-mode", "smart", "-progress-interval", "100", "-paths", projectDir}, extraArgs...)
+		cmd := exec.Command("go", args...)
+		cmd.Dir = toolDir
+		cmd.Env = append(os.Environ(), "XDG_CONFIG_HOME="+configDir)
+		out, err := cmd.CombinedOutput()
+		if err != nil {
+			t.Fatalf("command failed: %v\n%s", err, out)
+		}
+		return out
+	}
+
+	hasGitDir := func(data []byte) bool {
+		var roots []map[string]interface{}
+		if err := json.Unmarshal(data, &roots); err != nil {
+			t.Fatalf("parsing JSON output: %v", err)
+		}
+		for _, root := range roots {
+			if children, ok := root["children"].([]interface{}); ok {
+				for _, child := range children {
+					if m, ok := child.(map[string]interface{}); ok {
+						if name, ok := m["name"].(string); ok && name == ".git" {
+							return true
+						}
+					}
+				}
+			}
+		}
+		return false
+	}
+
+	// With -vcs=false the flag should override the config and .git is skipped.
+	out := run("-vcs=false")
+	if hasGitDir(out) {
+		t.Fatalf("expected .git to be excluded when -vcs=false overrides include_vcs config, got output:\n%s", out)
+	}
+
+	// Without the flag, the config preference should include .git.
+	out = run()
+	if !hasGitDir(out) {
+		t.Fatalf("expected .git to be included when config has include_vcs, got output:\n%s", out)
 	}
 }
 
