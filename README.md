@@ -825,6 +825,23 @@ The analyzer runs on demand (press `a` in the TUI). It does three things:
 2. **Category check**: checks if a file is classified as a log/cache file. Also essentially free.
 3. **Duplicate detection**: reads file contents and hashes them. This is the expensive part.
 
+#### Age check and "last touched"
+
+A file is flagged as **old** when the **older of its access time and modification time** is past the configured threshold. The analyzer reports this as **last touched** in the TUI detail column and in exports.
+
+Using the older of the two timestamps makes the age check robust on filesystems where access time updates are unreliable or disabled:
+
+- Some volumes do not update `atime` at all, so a file could look ancient even though it was accessed recently.
+- A backup tool, search indexer, or antivirus scan may touch a file and update `atime`, making a truly old file look recent.
+
+By using the older timestamp, `cleanup-tool` avoids both false positives and false negatives:
+
+```text
+last touched = min(access time, modification time)
+```
+
+You can adjust what counts as "old" with saved rules via `age_threshold_days` (default 365 days).
+
 ### Duplicate-detection modes
 
 | Mode | Speed | Accuracy | When to use |
