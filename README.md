@@ -356,7 +356,9 @@ See [Scheduling rules with launchd](#scheduling-rules-with-launchd) to automate 
 
 ## Scheduling rules with launchd
 
-Rules can be scheduled as macOS user agents in `~/Library/LaunchAgents`. The `schedule` subcommand installs, removes, and lists these agents.
+The `schedule` subcommand turns any saved rule into a macOS `launchd` user agent in `~/Library/LaunchAgents`. This lets you run cleanups automatically — daily, weekly, on a fixed interval, or every time you log in — without keeping the app open.
+
+### Examples
 
 ```bash
 # Run a rule every day at 10:00
@@ -368,7 +370,7 @@ Rules can be scheduled as macOS user agents in `~/Library/LaunchAgents`. The `sc
 # Run a rule every hour
 ./cleanup-tool schedule install cache-cleanup --interval 3600
 
-# Run a rule once after login
+# Run a rule once after each login
 ./cleanup-tool schedule install cache-cleanup --on-login
 
 # List installed schedules
@@ -378,9 +380,7 @@ Rules can be scheduled as macOS user agents in `~/Library/LaunchAgents`. The `sc
 ./cleanup-tool schedule remove cache-cleanup
 ```
 
-Scheduled runs execute the rule with `--yes`, so they skip the confirmation prompt. Output is written to `~/.local/state/cleanup-tool/<rule>.log`.
-
-> **Note:** schedule options (`--daily`, `--weekly`, `--interval`, `--on-login`) are mutually exclusive. The plist stores the absolute path to the `cleanup-tool` binary, so moving or deleting the binary after scheduling will break the schedule.
+Scheduled runs execute the rule with `--yes`, so they skip the confirmation prompt. Output is written to `~/.local/state/cleanup-tool/<rule>.log` and errors to `<rule>.err`.
 
 ### Schedule options
 
@@ -390,6 +390,50 @@ Scheduled runs execute the rule with `--yes`, so they skip the confirmation prom
 | `--weekly --day D --at HH:MM` | Run on a given weekday | `--weekly --day Mon --at 09:00` |
 | `--interval SECONDS` | Run every N seconds | `--interval 3600` |
 | `--on-login` | Run once after user login | `--on-login` |
+
+### Sample generated plist
+
+When you run `schedule install`, `cleanup-tool` writes a plist like this:
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.cleanup-tool.cache-cleanup</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/usr/local/bin/cleanup-tool</string>
+        <string>rules</string>
+        <string>run</string>
+        <string>cache-cleanup</string>
+        <string>--yes</string>
+    </array>
+    <key>StartCalendarInterval</key>
+    <dict>
+        <key>Hour</key>
+        <integer>10</integer>
+        <key>Minute</key>
+        <integer>0</integer>
+    </dict>
+    <key>StandardOutPath</key>
+    <string>/Users/username/.local/state/cleanup-tool/cache-cleanup.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/username/.local/state/cleanup-tool/cache-cleanup.err</string>
+</dict>
+</plist>
+```
+
+> **Note:** schedule options (`--daily`, `--weekly`, `--interval`, `--on-login`) are mutually exclusive. The plist stores the absolute path to the `cleanup-tool` binary, so moving or deleting the binary after scheduling will break the schedule.
+
+### Common use cases
+
+- **Nightly log cleanup** — run a `log/cache` rule every night after work.
+- **Weekly deep clean** — remove old files and duplicates every Sunday morning.
+- **Login cleanup** — free up caches automatically every time you log in.
+- **CI-style periodic cleanup** — use `--interval` on a shared Mac to keep build directories tidy during long-running tests.
+- **Safe automation** — always dry-run a rule with `rules run <name> --dry-run` before scheduling it.
 
 ## Configuration file
 
