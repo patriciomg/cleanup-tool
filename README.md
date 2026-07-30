@@ -188,6 +188,19 @@ make watch-test
 
 The `deps` subcommand finds dependency directories — such as `node_modules`, `vendor`, `.venv`, `Pods`, and others — under one or more paths. It reports each directory's type, size, last access time, and last modified time, sorted by size by default. `deps` is a read-only discovery command: it only lists directories and never deletes anything.
 
+### Sample output
+
+```
+PATH                                              TYPE         SIZE    LAST ACCESS      LAST MODIFIED
+/Users/dev/projects/app/node_modules              node_modules 1.2 GB  5 min ago        2024-06-01 09:15
+/Users/dev/projects/api/vendor                    vendor       450 MB  2 hr ago         2024-08-20 16:40
+/Users/dev/projects/ios/Pods                      Pods         120 MB  3 days ago       2024-11-11 08:20
+
+Found 3 dependency directories, total size 1.66 GB
+```
+
+### Examples
+
 ```bash
 # Find dependency directories under your projects folder
 ./cleanup-tool deps -paths ~/projects
