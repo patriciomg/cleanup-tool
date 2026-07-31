@@ -245,7 +245,9 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: patriciomg/homebrew-cleanup-tool
-          path: /tmp/homebrew-cleanup-tool
+          # actions/checkout requires the path to be inside the workspace;
+          # this resolves to ${{ github.workspace }}/homebrew-cleanup-tool.
+          path: homebrew-cleanup-tool
           # The default GITHUB_TOKEN is scoped to this repository only and
           # cannot clone the tap; use the dedicated PAT (repo scope) instead.
           token: ${{ secrets.TAP_GITHUB_TOKEN }}
