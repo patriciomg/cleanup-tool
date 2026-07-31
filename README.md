@@ -62,6 +62,8 @@ A fast, terminal-based disk cleanup tool tailored for macOS developers who work 
 - **Deletability analyzer** that flags old files, log/cache files, and duplicates, with per-category filtering, stacked bar summary, and live progress
 - **Docker disk usage** analysis and prune wrapper for images, containers, volumes, and build cache
 - **Mouse and keyboard support** in the analyzer summary for filtering by category
+- **File preview pane** that shows directory details or text-file contents for the selected item (`v` key, wide terminals)
+- **PgUp/PgDn paging and mouse-wheel scrolling** in the file browser, analyzer, and deps views
 - **Benchmark mode** to measure scan performance (`-benchmark`)
 - **Saved rules** for reusable cleanup presets with non-interactive execution (`rules` subcommand)
 - **LLM registry cleanup**: inspect and delete models from Ollama, Hugging Face cache, and LM Studio via the TUI (`M` key) or CLI (`models list` / `models delete`)
@@ -957,6 +959,9 @@ The classic terminal-style file browser. Select it with `-tui-style terminal` (`
 | Key | Action |
 |-----|--------|
 | ↑ / ↓ / j / k | Navigate |
+| PgUp / PgDn (or Ctrl+B / Ctrl+F) | Page through the list |
+| Mouse wheel | Scroll the list |
+| v | Toggle the file preview pane (wide terminals, ≥ 110 columns) |
 | l / Enter / → | Expand / collapse selected directory |
 | h / Esc / ← | Collapse directory or move selection to parent |
 | Space | Mark / unmark item |
@@ -980,6 +985,9 @@ item. Select the terminal view with `-tui-style terminal`.
 | Key | Action |
 |-----|--------|
 | ↑ / ↓ / j / k | Navigate |
+| PgUp / PgDn (or Ctrl+B / Ctrl+F) | Page through the list |
+| Mouse wheel | Scroll the list |
+| v | Toggle the file preview pane (wide terminals, ≥ 110 columns) |
 | Enter / l | Descend into selected directory |
 | Backspace / h / u / Esc | Go to parent directory |
 | d | Mark / unmark selected item |
@@ -995,11 +1003,23 @@ item. Select the terminal view with `-tui-style terminal`.
 | ? | Toggle help |
 | q | Quit |
 
+#### File preview pane
+
+When your terminal is at least 110 columns wide, both browsers show a **preview pane** to the right of the file list for the currently selected item. It is on by default and can be toggled with `v`.
+
+- **Directories** show their type, size, item count, and path.
+- **Files** show their size, modification time, path, and the first ~32 KB of content when the file is readable text. Binary, empty, and unreadable files get a short notice instead.
+- The pane never overflows the list: content lines are truncated to the pane width with a trailing `...`, and the whole pane is height-capped with another `...` when there is more to show.
+
+On narrow terminals the pane is hidden automatically, and `v` has no effect until the terminal is widened again.
+
 ### Analyzer summary
 
 | Key | Action |
 |-----|--------|
 | ↑ / ↓ / j / k | Navigate |
+| PgUp / PgDn (or Ctrl+B / Ctrl+F) | Page through hints |
+| Mouse wheel | Scroll hints |
 | Tab / ← / → | Filter by category |
 | 0 | Clear category filter |
 | Space | Mark / unmark hint |
@@ -1073,7 +1093,8 @@ Cleanup Tool — /Users/dev
   2.8 GB   <1% ▏                   docs
   1.2 GB   <1% ▏                   notes
 
-[j/k/down/up] navigate  [enter/l] descend  [h/u/esc] parent
+[j/k/down/up] navigate  [pgup/pgdn] page  [wheel] scroll
+[enter/l] descend  [h/u/esc] parent  [v] preview
 [d] mark  [x] trash marked  [m] move  [r] restore
 [a] analyze  [A] analyze selection  [D] Docker  [q] quit
 ```
@@ -1096,7 +1117,8 @@ Cleanup Tool
     [ ]  2.8 GB  2024-09-30   Directory     docs
     [ ]  1.2 GB  2024-09-30   Directory     notes
 
-[j/k/down/up] navigate  [l/enter/right] expand  [h/esc/left] collapse
+[j/k/down/up] navigate  [pgup/pgdn] page  [wheel] scroll
+[l/enter/right] expand  [h/esc/left] collapse  [v] preview
 [c] clear  [d] trash  [m] move  [u] restore  [a] analyze dir
 [A] analyze selection  [D] Docker  [q] quit
 ```
@@ -1118,7 +1140,8 @@ Showing 6 of 6
 [ ]   duplicate           3 duplicates    photos/img_001.jpg
 [ ]   log/cache           log-cache       .cache/npm/abc123
 
-[j/k/down/up] nav  [tab/←/→] filter  [0] clear filter  [c] clear marks
+[j/k/down/up] nav  [pgup/pgdn] page  [wheel] scroll
+[tab/←/→] filter  [0] clear filter  [c] clear marks
 [space] mark  [d] trash marked  [esc] back  [q] quit
 ```
 
@@ -1308,6 +1331,7 @@ For the full release checklist, including GPG setup, see [`docs/releasing.md`](d
 - [x] Saved rules with non-interactive execution
 - [x] launchd automation for saved rules
 - [x] Dua-style interactive browser (default) with flat size-sorted list, percentages, and bars
+- [x] File preview pane, PgUp/PgDn paging, and mouse-wheel scrolling in both TUI styles
 - [x] LLM registry inspection and model deletion (Ollama, Hugging Face cache, LM Studio) via TUI (`M` key) and CLI (`models list`, `models delete`)
 - [x] Export scan results to JSON, CSV, TSV, and YAML with auto-detected formats (`-out`, `-stdout`, `-format`, `-csv-columns`)
 - [x] CI/CD smoke tests and GPG-signed macOS universal releases
