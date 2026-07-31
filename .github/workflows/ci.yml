@@ -246,6 +246,9 @@ jobs:
         with:
           repository: patriciomg/homebrew-cleanup-tool
           path: /tmp/homebrew-cleanup-tool
+          # The default GITHUB_TOKEN is scoped to this repository only and
+          # cannot clone the tap; use the dedicated PAT (repo scope) instead.
+          token: ${{ secrets.TAP_GITHUB_TOKEN }}
 
       - name: Audit formula in tap repository
         run: |

@@ -23,5 +23,7 @@ Usage of <binary>:
     	Export scan results to stdout (works with any -format; alias for -json)
   -tui-style string
     	Interactive TUI style: terminal or dua (default "dua")
+  -vcs
+    	Include VCS directories (.git, .hg, etc.) in scan
   -version
     	Show version
