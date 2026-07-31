@@ -1,6 +1,8 @@
 package terminal
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -641,5 +643,95 @@ func TestSelectedPathsReturnsGlobalMarks(t *testing.T) {
 	paths := m.selectedPaths()
 	if len(paths) != 2 {
 		t.Fatalf("expected 2 selected paths, got %d", len(paths))
+	}
+}
+
+func TestPreviewToggleInTerminal(t *testing.T) {
+	parent := entry("dir", "/dir", 10, true)
+	m := New([]*analyzer.Entry{parent}, "", false, nil, analyzer.DupHashSmart, 100, nil)
+	if !m.showPreview {
+		t.Fatal("expected preview enabled by default")
+	}
+	m.handleKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'v'}})
+	if m.showPreview {
+		t.Fatal("expected preview disabled after v")
+	}
+	m.handleKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'v'}})
+	if !m.showPreview {
+		t.Fatal("expected preview re-enabled after second v")
+	}
+}
+
+func TestPreviewPaneShowsDirectoryInfoInTerminal(t *testing.T) {
+	parent := entry("dir", "/dir", 10, true)
+	m := New([]*analyzer.Entry{parent}, "", false, nil, analyzer.DupHashSmart, 100, nil)
+	m.width = 140
+	m.height = 24
+	v := m.View()
+	if !strings.Contains(v, "Preview") {
+		t.Fatalf("expected preview pane header, got:\n%s", v)
+	}
+	if !strings.Contains(v, "Directory") {
+		t.Fatalf("expected preview to show directory info, got:\n%s", v)
+	}
+}
+
+func TestPreviewPaneShowsFileContentInTerminal(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "note.txt")
+	if err := os.WriteFile(path, []byte("hello preview\nsecond line\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	file := &analyzer.Entry{Path: path, Name: "note.txt", IsDir: false, Size: 30}
+	root := &analyzer.Entry{Path: dir, Name: dir, IsDir: true, Size: 30, Children: []*analyzer.Entry{file}}
+	file.Parent = root
+
+	m := New([]*analyzer.Entry{root}, "", false, nil, analyzer.DupHashSmart, 100, nil)
+	m.width = 140
+	m.height = 24
+	// The terminal TUI is a tree view: expand the root so the file is visible,
+	// then select it so the preview targets the file rather than the directory.
+	m.expanded[root.Path] = true
+	m.rebuild()
+	m.selected = 1
+	v := m.View()
+	if !strings.Contains(v, "hello preview") {
+		t.Fatalf("expected preview to show file content, got:\n%s", v)
+	}
+}
+
+func TestPreviewHiddenOnNarrowTerminalInTerminal(t *testing.T) {
+	parent := entry("dir", "/dir", 10, true)
+	m := New([]*analyzer.Entry{parent}, "", false, nil, analyzer.DupHashSmart, 100, nil)
+	m.width = 80
+	v := m.View()
+	if strings.Contains(v, "Preview") {
+		t.Fatalf("expected no preview pane on narrow terminal, got:\n%s", v)
+	}
+}
+
+func TestPreviewNameColumnTruncatedInTerminal(t *testing.T) {
+	// A long name should be truncated when the preview pane is active so the
+	// list stays flush with the pane.
+	long := entry("a-really-long-directory-name-that-exceeds-the-allowed-width.txt", "/dir/"+strings.Repeat("x", 80), 10, false)
+	parent := entry("dir", "/dir", 10, true, long)
+	long.Parent = parent
+
+	m := New([]*analyzer.Entry{parent}, "", false, nil, analyzer.DupHashSmart, 100, nil)
+	m.width = 140
+	m.height = 24
+	// Expand the tree so the long-named child row is visible and truncated.
+	m.expanded[parent.Path] = true
+	m.rebuild()
+	// Compute the exact truncation the view applies: the tree label (indent
+	// included) capped to nameW = width - pane - separator - 44 fixed columns.
+	want := common.TruncateStart(m.treeLabel(long), 140-common.PreviewPaneWidth-2-44)
+	v := m.View()
+	if !strings.Contains(v, want) {
+		t.Fatalf("expected truncated name %q in wide view, got:\n%s", want, v)
+	}
+	if strings.Contains(v, long.Name) {
+		t.Fatalf("expected the full long name to be truncated, got:\n%s", v)
 	}
 }

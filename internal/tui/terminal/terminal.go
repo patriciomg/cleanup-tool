@@ -86,6 +86,7 @@ type Model struct {
 	trashed          map[string]bool
 	expanded         map[string]bool
 	scanStart        time.Time
+	showPreview      bool
 
 	ignoreHidden bool
 	ignorePaths  []string
@@ -206,6 +207,7 @@ func New(roots []*analyzer.Entry, externalDir string, scanning bool, dockerClien
 		trashed:          make(map[string]bool),
 		expanded:         make(map[string]bool),
 		depsMarked:       make(map[string]bool),
+		showPreview:      true,
 		dupMode:          dupMode,
 		progressInterval: progressInterval,
 		undoStack:        undo.NewStack(10),
@@ -728,6 +730,8 @@ func (m *Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.pageFiles(-1)
 	case "pgdown", "ctrl+f":
 		m.pageFiles(1)
+	case "v":
+		m.showPreview = !m.showPreview
 	case "right", "enter", "l":
 		if m.selected < len(m.items) && m.items[m.selected].IsDir {
 			m.toggleExpanded(m.items[m.selected].Path)
@@ -1542,7 +1546,20 @@ func (m *Model) View() string {
 			m.files, m.dirs, m.scanDuration.Round(time.Millisecond), m.peakFilesPerSec, m.peakDirsPerSec))
 	}
 	b.WriteString("\n")
-	b.WriteString(fmt.Sprintf("%-3s %-10s %-12s %-15s %s\n", "", "Size", "Access", "Category", "Name"))
+
+	preview := m.showPreview && m.width >= common.PreviewMinWidth
+	nameW := 0
+	if preview {
+		// 44 fixed columns (%-3s prefix, %-10s size, %-12s access, %-15s category,
+		// spacing) + 2 for the pane separator.
+		nameW = m.width - common.PreviewPaneWidth - 2 - 44
+		if nameW < 10 {
+			nameW = 10
+		}
+	}
+
+	var lb strings.Builder
+	lb.WriteString(fmt.Sprintf("%-3s %-10s %-12s %-15s %s\n", "", "Size", "Access", "Category", "Name"))
 
 	start, end := m.visibleRange()
 	for i := start; i < end && i < len(m.items); i++ {
@@ -1554,6 +1571,9 @@ func (m *Model) View() string {
 			prefix = "[ ]"
 		}
 		label := m.treeLabel(item)
+		if nameW > 0 {
+			label = common.TruncateStart(label, nameW)
+		}
 		line := fmt.Sprintf("%-3s %-10s %-12s %-15s %s",
 			prefix,
 			analyzer.PrettySize(item.Size),
@@ -1561,7 +1581,6 @@ func (m *Model) View() string {
 			categoryLabel(item),
 			label,
 		)
-		style := lipgloss.NewStyle()
 		if m.trashed[item.Path] {
 			line = common.TrashedStyle.Render(line)
 		} else if m.marked[item.Path] {
@@ -1569,14 +1588,21 @@ func (m *Model) View() string {
 		} else if i == m.selected {
 			line = common.SelectStyle.Render(line)
 		}
-		_ = style
-		b.WriteString(line + "\n")
+		lb.WriteString(line + "\n")
+	}
+
+	if preview {
+		// The terminal TUI renders a fixed 20-row window; cap the pane to the
+		// same height so it never overflows the list.
+		b.WriteString(lipgloss.JoinHorizontal(lipgloss.Top, lb.String(), "  ", common.PreviewPane(m.selectedEntry(), 20)))
+	} else {
+		b.WriteString(lb.String())
 	}
 
 	hints := []string{
 		"[j/k/down/up] navigate", "[l/enter/right] expand", "[h/esc/left] collapse",
 		"[space] mark", "[c] clear", "[d] trash", "[m] move", "[u] restore", "[Z] undo",
-		"[a] analyze dir", "[A] analyze selection", "[P] deps", "[D] Docker", "[M] Models", "[o] recent", "[/] filter", "[s] sort", "[q] quit",
+		"[v] preview", "[a] analyze dir", "[A] analyze selection", "[P] deps", "[D] Docker", "[M] Models", "[o] recent", "[/] filter", "[s] sort", "[q] quit",
 	}
 	b.WriteString("\n" + common.FormatHelpBar(m.width, hints) + "\n")
 	if m.msg != "" {

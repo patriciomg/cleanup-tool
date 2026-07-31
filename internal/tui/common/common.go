@@ -3,8 +3,11 @@
 package common
 
 import (
+	"bytes"
 	"fmt"
+	"io"
 	"math"
+	"os"
 	"sort"
 	"strings"
 	"unicode"
@@ -13,6 +16,17 @@ import (
 	"github.com/charmbracelet/lipgloss"
 
 	"github.com/patriciomg/cleanup-tool/internal/analyzer"
+)
+
+// Preview pane constants shared by the TUI implementations.
+const (
+	// PreviewMinWidth is the minimum terminal width at which the file
+	// preview pane is shown automatically.
+	PreviewMinWidth = 110
+	// PreviewPaneWidth is the width of the file preview pane.
+	PreviewPaneWidth = 44
+	// PreviewMaxBytes caps how much of a file is read for the preview pane.
+	PreviewMaxBytes = 32 * 1024
 )
 
 // Shared lipgloss styles used by the TUIs.
@@ -70,6 +84,101 @@ func Truncate(s string, n int) string {
 		return "..."
 	}
 	return "..." + s[len(s)-(n-3):]
+}
+
+// TruncateStart shortens s to at most n runes, keeping the beginning of the
+// string. Unlike Truncate (which keeps the end for path readability), this is
+// used for file names and preview content where the start matters.
+func TruncateStart(s string, n int) string {
+	r := []rune(s)
+	if len(r) <= n {
+		return s
+	}
+	if n <= 3 {
+		return "..."
+	}
+	return string(r[:n-3]) + "..."
+}
+
+// FilePreview returns the file's text lines (up to PreviewMaxBytes) and
+// whether the content was cut short. Binary, empty, and unreadable files
+// produce a short notice line instead.
+func FilePreview(path string) ([]string, bool) {
+	f, err := os.Open(path)
+	if err != nil {
+		return []string{"(cannot read)"}, false
+	}
+	defer f.Close()
+
+	data, err := io.ReadAll(io.LimitReader(f, PreviewMaxBytes))
+	if err != nil {
+		return []string{"(cannot read)"}, false
+	}
+	if len(data) == 0 {
+		return []string{"(empty file)"}, false
+	}
+	if bytes.IndexByte(data, 0) >= 0 {
+		return []string{"(binary file)"}, false
+	}
+	return strings.Split(string(data), "\n"), len(data) >= PreviewMaxBytes
+}
+
+// PreviewPane renders a side pane with details and, for text files, a content
+// preview of the given item. It is only rendered when the terminal is wide
+// enough for the PreviewMinWidth threshold. maxLines caps the pane height so
+// it never overflows the list it sits beside.
+func PreviewPane(item *analyzer.Entry, maxLines int) string {
+	if item == nil {
+		return ""
+	}
+
+	var lines []string
+	lines = append(lines, "Preview")
+	lines = append(lines, "")
+
+	if item.IsDir {
+		lines = append(lines, "Directory")
+		lines = append(lines, "Size: "+analyzer.PrettySize(item.Size))
+		lines = append(lines, fmt.Sprintf("Items: %d", len(item.Children)))
+		lines = append(lines, "Path: "+item.Path)
+	} else {
+		lines = append(lines, "File")
+		lines = append(lines, "Size: "+analyzer.PrettySize(item.Size))
+		if !item.ModTime.IsZero() {
+			lines = append(lines, "Modified: "+item.ModTime.Format("2006-01-02 15:04"))
+		}
+		lines = append(lines, "Path: "+item.Path)
+		lines = append(lines, "")
+		content, truncated := FilePreview(item.Path)
+		lines = append(lines, content...)
+		if truncated {
+			lines = append(lines, "...")
+		}
+	}
+
+	// Cap the whole pane to maxLines so it never overflows the view, keeping a
+	// trailing ellipsis to indicate more content.
+	if maxLines > 0 && len(lines) > maxLines {
+		lines = append(lines[:maxLines-1], "...")
+	}
+
+	// The border is drawn outside the width in lipgloss, so cap the content
+	// width to leave room for it.
+	pw := PreviewPaneWidth - 2
+	out := make([]string, 0, len(lines))
+	for i, l := range lines {
+		s := TruncateStart(l, pw)
+		// Style the header after truncation so rune slicing never corrupts
+		// ANSI escape codes.
+		if i == 0 {
+			s = HeaderStyle.Render(s)
+		}
+		out = append(out, s)
+	}
+	return lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		Width(pw).
+		Render(strings.Join(out, "\n"))
 }
 
 // Pluralize returns the singular or plural form based on n.

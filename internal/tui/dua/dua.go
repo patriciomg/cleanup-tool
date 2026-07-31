@@ -6,10 +6,8 @@
 package dua
 
 import (
-	"bytes"
 	"context"
 	"fmt"
-	"io"
 	"math"
 	"os"
 	"path/filepath"
@@ -51,14 +49,6 @@ const (
 
 	// stackedBarWidth is the total width of the stacked summary bar.
 	stackedBarWidth = 24
-
-	// previewMinWidth is the minimum terminal width at which the file
-	// preview pane is shown automatically.
-	previewMinWidth = 110
-	// previewPaneWidth is the width of the file preview pane.
-	previewPaneWidth = 44
-	// previewMaxBytes caps how much of a file is read for the preview pane.
-	previewMaxBytes = 32 * 1024
 )
 
 // Model holds the state of the dua-style TUI.
@@ -1159,12 +1149,12 @@ func (m *Model) View() string {
 		return b.String()
 	}
 
-	preview := m.showPreview && m.width >= previewMinWidth
+	preview := m.showPreview && m.width >= common.PreviewMinWidth
 	nameW := 0
 	if preview {
 		// 33 fixed columns (%-12s size, %5s%% pct, %-12s bar, spacing)
 		// + 2 for the pane separator.
-		nameW = m.width - previewPaneWidth - 2 - 33
+		nameW = m.width - common.PreviewPaneWidth - 2 - 33
 		if nameW < 10 {
 			nameW = 10
 		}
@@ -1180,7 +1170,7 @@ func (m *Model) View() string {
 		pct := percent(item.Size, m.current.Size)
 		name := label(item)
 		if nameW > 0 {
-			name = truncateStart(name, nameW)
+			name = common.TruncateStart(name, nameW)
 		}
 		line := fmt.Sprintf("%-12s %5s%% %-12s %s",
 			analyzer.PrettySize(item.Size),
@@ -1199,7 +1189,7 @@ func (m *Model) View() string {
 	}
 
 	if preview {
-		b.WriteString(lipgloss.JoinHorizontal(lipgloss.Top, lb.String(), "  ", m.previewPane()))
+		b.WriteString(lipgloss.JoinHorizontal(lipgloss.Top, lb.String(), "  ", common.PreviewPane(m.selectedItem(), m.pageSize())))
 	} else {
 		b.WriteString(lb.String())
 	}
@@ -1516,101 +1506,6 @@ func (m *Model) visibleRangeWithSelected(n, sel int) (int, int) {
 		end = n
 	}
 	return start, end
-}
-
-// previewPane renders a side pane with details and, for text files, a content
-// preview of the currently selected item. It is only rendered when the
-// terminal is wide enough for the previewMinWidth threshold.
-func (m *Model) previewPane() string {
-	item := m.selectedItem()
-	if item == nil {
-		return ""
-	}
-
-	var lines []string
-	lines = append(lines, common.HeaderStyle.Render("Preview"))
-	lines = append(lines, "")
-
-	if item.IsDir {
-		lines = append(lines, "Directory")
-		lines = append(lines, "Size: "+analyzer.PrettySize(item.Size))
-		lines = append(lines, fmt.Sprintf("Items: %d", len(item.Children)))
-		lines = append(lines, "Path: "+item.Path)
-	} else {
-		lines = append(lines, "File")
-		lines = append(lines, "Size: "+analyzer.PrettySize(item.Size))
-		if !item.ModTime.IsZero() {
-			lines = append(lines, "Modified: "+item.ModTime.Format("2006-01-02 15:04"))
-		}
-		lines = append(lines, "Path: "+item.Path)
-		lines = append(lines, "")
-		content, truncated := m.filePreview(item.Path)
-		lines = append(lines, content...)
-		if truncated {
-			lines = append(lines, "...")
-		}
-	}
-
-	// Cap the whole pane to the list height so it never overflows the view,
-	// keeping a trailing ellipsis to indicate more content.
-	if maxLines := m.pageSize(); len(lines) > maxLines {
-		lines = append(lines[:maxLines-1], "...")
-	}
-
-	// The border is drawn outside the width in lipgloss, so cap the content
-	// width to leave room for it.
-	pw := previewPaneWidth - 2
-	out := make([]string, 0, len(lines))
-	for i, l := range lines {
-		s := truncateStart(l, pw)
-		// Style the header after truncation so rune slicing never corrupts
-		// ANSI escape codes.
-		if i == 0 {
-			s = common.HeaderStyle.Render(s)
-		}
-		out = append(out, s)
-	}
-	return lipgloss.NewStyle().
-		Border(lipgloss.RoundedBorder()).
-		Width(pw).
-		Render(strings.Join(out, "\n"))
-}
-
-// truncateStart shortens s to at most n runes, keeping the beginning of the
-// string. Unlike common.Truncate (which keeps the end for path readability),
-// this is used for file names and preview content where the start matters.
-func truncateStart(s string, n int) string {
-	r := []rune(s)
-	if len(r) <= n {
-		return s
-	}
-	if n <= 3 {
-		return "..."
-	}
-	return string(r[:n-3]) + "..."
-}
-
-// filePreview returns the file's text lines (up to previewMaxBytes) and
-// whether the content was cut short. Binary, empty, and unreadable files
-// produce a short notice line instead.
-func (m *Model) filePreview(path string) ([]string, bool) {
-	f, err := os.Open(path)
-	if err != nil {
-		return []string{"(cannot read)"}, false
-	}
-	defer f.Close()
-
-	data, err := io.ReadAll(io.LimitReader(f, previewMaxBytes))
-	if err != nil {
-		return []string{"(cannot read)"}, false
-	}
-	if len(data) == 0 {
-		return []string{"(empty file)"}, false
-	}
-	if bytes.IndexByte(data, 0) >= 0 {
-		return []string{"(binary file)"}, false
-	}
-	return strings.Split(string(data), "\n"), len(data) >= previewMaxBytes
 }
 
 func label(item *analyzer.Entry) string {
