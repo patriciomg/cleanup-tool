@@ -1,6 +1,9 @@
 package dua
 
 import (
+	"os"
+	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -333,5 +336,147 @@ func TestSortOrderSavedToConfig(t *testing.T) {
 	m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'s'}})
 	if cfg.SortOrder != "name" {
 		t.Fatalf("expected cfg.SortOrder 'name' after cycling, got %q", cfg.SortOrder)
+	}
+}
+
+func manyFiles(n int) []*analyzer.Entry {
+	root := &analyzer.Entry{Path: "/tmp", Name: "tmp", IsDir: true, Size: int64(n)}
+	for i := 0; i < n; i++ {
+		// Distinct sizes keep the size-sorted order deterministic; distinct
+		// paths keep marking/filtering tests unambiguous.
+		f := &analyzer.Entry{Path: "/tmp/f" + strconv.Itoa(i), Name: "f" + strconv.Itoa(i), IsDir: false, Size: int64(n - i), Parent: root}
+		root.Children = append(root.Children, f)
+	}
+	return []*analyzer.Entry{root}
+}
+
+func TestPageDownMovesByPage(t *testing.T) {
+	m := newModel(manyFiles(30))
+	m.height = 24 // pageSize = 24 - 6 = 18
+	m.selected = 0
+
+	m.Update(tea.KeyMsg{Type: tea.KeyPgDown})
+	if m.selected != 18 {
+		t.Fatalf("expected selected 18 after pgdown, got %d", m.selected)
+	}
+
+	// Further paging must clamp to the last item.
+	m.Update(tea.KeyMsg{Type: tea.KeyPgDown})
+	if m.selected != 29 {
+		t.Fatalf("expected selected 29 after second pgdown, got %d", m.selected)
+	}
+
+	m.Update(tea.KeyMsg{Type: tea.KeyPgUp})
+	if m.selected != 11 {
+		t.Fatalf("expected selected 11 after pgup, got %d", m.selected)
+	}
+}
+
+func TestMouseWheelScrollsFileList(t *testing.T) {
+	m := newModel(manyFiles(5))
+	m.selected = 0
+
+	m.Update(tea.MouseMsg{Type: tea.MouseWheelDown})
+	if m.selected != 1 {
+		t.Fatalf("expected selected 1 after wheel down, got %d", m.selected)
+	}
+	m.Update(tea.MouseMsg{Type: tea.MouseWheelUp})
+	if m.selected != 0 {
+		t.Fatalf("expected selected 0 after wheel up, got %d", m.selected)
+	}
+}
+
+func TestMouseWheelClampsAtBounds(t *testing.T) {
+	m := newModel(manyFiles(3))
+	m.selected = 0
+	m.Update(tea.MouseMsg{Type: tea.MouseWheelUp})
+	if m.selected != 0 {
+		t.Fatalf("expected selected 0 at top bound, got %d", m.selected)
+	}
+	m.selected = 2
+	m.Update(tea.MouseMsg{Type: tea.MouseWheelDown})
+	if m.selected != 2 {
+		t.Fatalf("expected selected 2 at bottom bound, got %d", m.selected)
+	}
+}
+
+func TestPreviewToggle(t *testing.T) {
+	m := newModel(makeTree())
+	if !m.showPreview {
+		t.Fatal("expected preview enabled by default")
+	}
+	m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'v'}})
+	if m.showPreview {
+		t.Fatal("expected preview disabled after v")
+	}
+	m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'v'}})
+	if !m.showPreview {
+		t.Fatal("expected preview re-enabled after second v")
+	}
+}
+
+func TestPreviewPaneShowsDirectoryInfo(t *testing.T) {
+	m := newModel(makeTree())
+	m.width = 140
+	m.height = 24
+	v := m.View()
+	if !strings.Contains(v, "Preview") {
+		t.Fatalf("expected preview pane header, got:\n%s", v)
+	}
+	if !strings.Contains(v, "Directory") {
+		t.Fatalf("expected preview to show directory info, got:\n%s", v)
+	}
+}
+
+func TestPreviewPaneShowsFileContent(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "note.txt")
+	if err := os.WriteFile(path, []byte("hello preview\nsecond line\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	file := &analyzer.Entry{Path: path, Name: "note.txt", IsDir: false, Size: 30}
+	root := &analyzer.Entry{Path: dir, Name: dir, IsDir: true, Size: 30, Children: []*analyzer.Entry{file}}
+	file.Parent = root
+
+	m := newModel([]*analyzer.Entry{root})
+	m.width = 140
+	m.height = 24
+	v := m.View()
+	if !strings.Contains(v, "hello preview") {
+		t.Fatalf("expected preview to show file content, got:\n%s", v)
+	}
+}
+
+func TestPreviewHiddenOnNarrowTerminal(t *testing.T) {
+	m := newModel(makeTree())
+	m.width = 80
+	v := m.View()
+	if strings.Contains(v, "Preview") {
+		t.Fatalf("expected no preview pane on narrow terminal, got:\n%s", v)
+	}
+}
+
+func TestPageAnalyzerAndDeps(t *testing.T) {
+	m := newModel(makeTree())
+	m.height = 24
+	m.hints = []*analyzer.DeletabilityHint{
+		{Entry: &analyzer.Entry{Path: "/tmp/h1"}, Reason: analyzer.ReasonOld},
+		{Entry: &analyzer.Entry{Path: "/tmp/h2"}, Reason: analyzer.ReasonOld},
+	}
+	m.view = viewAnalyzer
+	m.Update(tea.KeyMsg{Type: tea.KeyPgDown})
+	if m.selected != 1 {
+		t.Fatalf("expected analyzer selected 1 after pgdown, got %d", m.selected)
+	}
+
+	m.depsList = []*deps.DependencyDir{
+		{Path: "/tmp/a/node_modules", Type: "node_modules", Size: 100, AccessTime: time.Now(), ModTime: time.Now()},
+		{Path: "/tmp/vendor", Type: "vendor", Size: 200, AccessTime: time.Now(), ModTime: time.Now()},
+	}
+	m.view = viewDeps
+	m.Update(tea.KeyMsg{Type: tea.KeyPgDown})
+	if m.depsSelected != 1 {
+		t.Fatalf("expected depsSelected 1 after pgdown, got %d", m.depsSelected)
 	}
 }

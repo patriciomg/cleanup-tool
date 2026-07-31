@@ -567,6 +567,64 @@ func TestSortOrderSavedToConfigInTerminal(t *testing.T) {
 	}
 }
 
+func TestPageDownMovesByPageInTerminal(t *testing.T) {
+	fileA := entry("a.txt", "/dir/a.txt", 10, false)
+	fileB := entry("b.txt", "/dir/b.txt", 20, false)
+	parent := entry("dir", "/dir", 30, true, fileA, fileB)
+	fileA.Parent = parent
+	fileB.Parent = parent
+
+	m := New([]*analyzer.Entry{parent}, "", false, nil, analyzer.DupHashSmart, 100, nil)
+	m.expanded[parent.Path] = true
+	m.rebuild()
+	if len(m.items) != 3 {
+		t.Fatalf("expected 3 visible items, got %d", len(m.items))
+	}
+
+	m.selected = 0
+	m.handleKey(tea.KeyMsg{Type: tea.KeyPgDown})
+	if m.selected != len(m.items)-1 {
+		t.Fatalf("expected pgdown to clamp to last item, got %d", m.selected)
+	}
+	m.handleKey(tea.KeyMsg{Type: tea.KeyPgUp})
+	if m.selected != 0 {
+		t.Fatalf("expected pgup to clamp to first item, got %d", m.selected)
+	}
+}
+
+func TestMouseWheelScrollsFilesInTerminal(t *testing.T) {
+	fileA := entry("a.txt", "/dir/a.txt", 10, false)
+	fileB := entry("b.txt", "/dir/b.txt", 20, false)
+	parent := entry("dir", "/dir", 30, true, fileA, fileB)
+	fileA.Parent = parent
+	fileB.Parent = parent
+
+	m := New([]*analyzer.Entry{parent}, "", false, nil, analyzer.DupHashSmart, 100, nil)
+	m.expanded[parent.Path] = true
+	m.rebuild()
+
+	m.selected = 0
+	m.handleMouse(tea.MouseMsg{Type: tea.MouseWheelDown})
+	if m.selected != 1 {
+		t.Fatalf("expected selected 1 after wheel down, got %d", m.selected)
+	}
+	m.handleMouse(tea.MouseMsg{Type: tea.MouseWheelUp})
+	if m.selected != 0 {
+		t.Fatalf("expected selected 0 after wheel up, got %d", m.selected)
+	}
+}
+
+func TestMouseWheelIgnoresOtherViewsInTerminal(t *testing.T) {
+	parent := entry("dir", "/dir", 10, true)
+	m := New([]*analyzer.Entry{parent}, "", false, nil, analyzer.DupHashSmart, 100, nil)
+	m.view = viewDocker
+	m.dockerSelected = 0
+	m.handleMouse(tea.MouseMsg{Type: tea.MouseWheelDown})
+	if m.dockerSelected != 0 {
+		t.Fatalf("expected docker selection unchanged, got %d", m.dockerSelected)
+	}
+}
+
 func TestSelectedPathsReturnsGlobalMarks(t *testing.T) {
 	fileA := entry("a.txt", "/dir/a.txt", 10, false)
 	fileB := entry("b.txt", "/dir/sub/b.txt", 20, false)

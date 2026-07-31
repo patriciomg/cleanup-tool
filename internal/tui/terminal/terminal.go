@@ -485,6 +485,14 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m *Model) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
+	switch msg.Type {
+	case tea.MouseWheelUp:
+		m.mouseScroll(-1)
+		return m, nil
+	case tea.MouseWheelDown:
+		m.mouseScroll(1)
+		return m, nil
+	}
 	if m.view != viewAnalyzer || m.analyzerRunning || len(m.hints) == 0 {
 		return m, nil
 	}
@@ -538,6 +546,96 @@ func (m *Model) categoryAtX(summary analyzer.HintSummary, x int) (analyzer.HintR
 		return analyzer.ReasonDuplicate, true
 	default:
 		return analyzer.ReasonLogCache, true
+	}
+}
+
+// mouseScroll moves the selection of the active list by one row per wheel
+// notch (dir is -1 for up, +1 for down).
+func (m *Model) mouseScroll(dir int) {
+	switch m.view {
+	case viewFiles:
+		if dir < 0 && m.selected > 0 {
+			m.selected--
+		} else if dir > 0 && m.selected < len(m.items)-1 {
+			m.selected++
+		}
+	case viewAnalyzer:
+		if m.analyzerRunning {
+			return
+		}
+		n := len(m.filteredHints())
+		if dir < 0 && m.selected > 0 {
+			m.selected--
+		} else if dir > 0 && m.selected < n-1 {
+			m.selected++
+		}
+	case viewDeps:
+		if dir < 0 && m.depsSelected > 0 {
+			m.depsSelected--
+		} else if dir > 0 && m.depsSelected < len(m.depsList)-1 {
+			m.depsSelected++
+		}
+	}
+}
+
+// pageFiles moves the file-browser selection by a full visible page.
+func (m *Model) pageFiles(dir int) {
+	n := len(m.items)
+	if n == 0 {
+		return
+	}
+	page := 20
+	if dir < 0 {
+		m.selected -= page
+		if m.selected < 0 {
+			m.selected = 0
+		}
+	} else {
+		m.selected += page
+		if m.selected >= n {
+			m.selected = n - 1
+		}
+	}
+}
+
+// pageAnalyzer moves the analyzer selection by a full visible page.
+func (m *Model) pageAnalyzer(dir int) {
+	filtered := m.filteredHints()
+	n := len(filtered)
+	if n == 0 {
+		return
+	}
+	page := 20
+	if dir < 0 {
+		m.selected -= page
+		if m.selected < 0 {
+			m.selected = 0
+		}
+	} else {
+		m.selected += page
+		if m.selected >= n {
+			m.selected = n - 1
+		}
+	}
+}
+
+// pageDeps moves the deps selection by a full visible page.
+func (m *Model) pageDeps(dir int) {
+	n := len(m.depsList)
+	if n == 0 {
+		return
+	}
+	page := 20
+	if dir < 0 {
+		m.depsSelected -= page
+		if m.depsSelected < 0 {
+			m.depsSelected = 0
+		}
+	} else {
+		m.depsSelected += page
+		if m.depsSelected >= n {
+			m.depsSelected = n - 1
+		}
 	}
 }
 
@@ -626,6 +724,10 @@ func (m *Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if m.selected < len(m.items)-1 {
 			m.selected++
 		}
+	case "pgup", "ctrl+b":
+		m.pageFiles(-1)
+	case "pgdown", "ctrl+f":
+		m.pageFiles(1)
 	case "right", "enter", "l":
 		if m.selected < len(m.items) && m.items[m.selected].IsDir {
 			m.toggleExpanded(m.items[m.selected].Path)
@@ -979,6 +1081,10 @@ func (m *Model) handleAnalyzerKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if m.selected < len(filtered)-1 {
 			m.selected++
 		}
+	case "pgup", "ctrl+b":
+		m.pageAnalyzer(-1)
+	case "pgdown", "ctrl+f":
+		m.pageAnalyzer(1)
 	case "left", "shift+tab":
 		m.cycleFilter(-1)
 	case "right", "tab":
@@ -1825,6 +1931,10 @@ func (m *Model) handleDepsKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if m.depsSelected < len(m.depsList)-1 {
 			m.depsSelected++
 		}
+	case "pgup", "ctrl+b":
+		m.pageDeps(-1)
+	case "pgdown", "ctrl+f":
+		m.pageDeps(1)
 	case " ":
 		dep := m.selectedDep()
 		if dep != nil {

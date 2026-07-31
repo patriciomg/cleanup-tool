@@ -6,8 +6,10 @@
 package dua
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"math"
 	"os"
 	"path/filepath"
@@ -49,6 +51,14 @@ const (
 
 	// stackedBarWidth is the total width of the stacked summary bar.
 	stackedBarWidth = 24
+
+	// previewMinWidth is the minimum terminal width at which the file
+	// preview pane is shown automatically.
+	previewMinWidth = 110
+	// previewPaneWidth is the width of the file preview pane.
+	previewPaneWidth = 44
+	// previewMaxBytes caps how much of a file is read for the preview pane.
+	previewMaxBytes = 32 * 1024
 )
 
 // Model holds the state of the dua-style TUI.
@@ -67,9 +77,10 @@ type Model struct {
 	spinner   spinner.Model
 	msg       string
 	err       error
-	trashed   map[string]bool
-	marked    map[string]bool
-	showHelp  bool
+	trashed     map[string]bool
+	marked      map[string]bool
+	showHelp    bool
+	showPreview bool
 
 	externalDir      string
 	dockerClient           docker.Client
@@ -150,6 +161,7 @@ func New(scanning bool, externalDir string, dockerClient docker.Client, dupMode 
 		spinner:          sp,
 		trashed:          make(map[string]bool),
 		marked:           make(map[string]bool),
+		showPreview:      true,
 		depsMarked:       make(map[string]bool),
 		externalDir:      externalDir,
 		dockerClient:     dockerClient,
@@ -210,6 +222,8 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.dockerItems, _ = m.dockerItems.UpdateModel(msg)
 		}
 		return m, nil
+	case tea.MouseMsg:
+		return m.handleMouse(msg)
 	case progressMsg:
 		m.files = msg.files
 		m.dirs = msg.dirs
@@ -460,6 +474,12 @@ func (m *Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if m.selected < len(m.items)-1 {
 			m.selected++
 		}
+	case "pgup", "ctrl+b":
+		m.pageFiles(-1)
+	case "pgdown", "ctrl+f":
+		m.pageFiles(1)
+	case "v":
+		m.showPreview = !m.showPreview
 	case "right", "enter", "l":
 		return m.descend()
 	case "left", "backspace", "h", "u", "esc":
@@ -531,6 +551,118 @@ func (m *Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.showHelp = true
 	}
 	return m, nil
+}
+
+// handleMouse translates mouse wheel events into list scrolling for the
+// currently active view.
+func (m *Model) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
+	switch msg.Type {
+	case tea.MouseWheelUp:
+		m.mouseScroll(-1)
+	case tea.MouseWheelDown:
+		m.mouseScroll(1)
+	}
+	return m, nil
+}
+
+// mouseScroll moves the selection of the active list by one row per wheel
+// notch (dir is -1 for up, +1 for down).
+func (m *Model) mouseScroll(dir int) {
+	switch m.view {
+	case viewFiles:
+		if dir < 0 && m.selected > 0 {
+			m.selected--
+		} else if dir > 0 && m.selected < len(m.items)-1 {
+			m.selected++
+		}
+	case viewAnalyzer:
+		if m.analyzerRunning {
+			return
+		}
+		n := len(m.filteredHints())
+		if dir < 0 && m.selected > 0 {
+			m.selected--
+		} else if dir > 0 && m.selected < n-1 {
+			m.selected++
+		}
+	case viewDeps:
+		if dir < 0 && m.depsSelected > 0 {
+			m.depsSelected--
+		} else if dir > 0 && m.depsSelected < len(m.depsList)-1 {
+			m.depsSelected++
+		}
+	}
+}
+
+// pageFiles moves the file-browser selection by a full visible page.
+func (m *Model) pageFiles(dir int) {
+	n := len(m.items)
+	if n == 0 {
+		return
+	}
+	page := m.pageSize()
+	if dir < 0 {
+		m.selected -= page
+		if m.selected < 0 {
+			m.selected = 0
+		}
+	} else {
+		m.selected += page
+		if m.selected >= n {
+			m.selected = n - 1
+		}
+	}
+}
+
+// pageAnalyzer moves the analyzer selection by a full visible page.
+func (m *Model) pageAnalyzer(dir int) {
+	filtered := m.filteredHints()
+	n := len(filtered)
+	if n == 0 {
+		return
+	}
+	page := m.pageSize()
+	if dir < 0 {
+		m.selected -= page
+		if m.selected < 0 {
+			m.selected = 0
+		}
+	} else {
+		m.selected += page
+		if m.selected >= n {
+			m.selected = n - 1
+		}
+	}
+}
+
+// pageDeps moves the deps selection by a full visible page.
+func (m *Model) pageDeps(dir int) {
+	n := len(m.depsList)
+	if n == 0 {
+		return
+	}
+	page := m.pageSize()
+	if dir < 0 {
+		m.depsSelected -= page
+		if m.depsSelected < 0 {
+			m.depsSelected = 0
+		}
+	} else {
+		m.depsSelected += page
+		if m.depsSelected >= n {
+			m.depsSelected = n - 1
+		}
+	}
+}
+
+// pageSize returns the number of rows that fit in the list area, used for
+// PgUp/PgDn navigation.
+func (m *Model) pageSize() int {
+	h := m.height - 6
+	if h < 8 {
+		h = 8
+	}
+	return h
 }
 
 func (m *Model) handleDockerKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
@@ -622,6 +754,10 @@ func (m *Model) handleAnalyzerKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if m.selected < len(filtered)-1 {
 			m.selected++
 		}
+	case "pgup", "ctrl+b":
+		m.pageAnalyzer(-1)
+	case "pgdown", "ctrl+f":
+		m.pageAnalyzer(1)
 	case "left", "shift+tab":
 		m.cycleFilter(-1)
 	case "right", "tab":
@@ -1023,18 +1159,34 @@ func (m *Model) View() string {
 		return b.String()
 	}
 
-	b.WriteString(fmt.Sprintf("%-12s %6s %-12s %s\n", "Size", "Pct", "Bar", "Name"))
+	preview := m.showPreview && m.width >= previewMinWidth
+	nameW := 0
+	if preview {
+		// 33 fixed columns (%-12s size, %5s%% pct, %-12s bar, spacing)
+		// + 2 for the pane separator.
+		nameW = m.width - previewPaneWidth - 2 - 33
+		if nameW < 10 {
+			nameW = 10
+		}
+	}
+
+	var lb strings.Builder
+	lb.WriteString(fmt.Sprintf("%-12s %6s %-12s %s\n", "Size", "Pct", "Bar", "Name"))
 
 	maxSize := m.items[0].Size
 	start, end := m.visibleRange(len(m.items))
 	for i := start; i < end; i++ {
 		item := m.items[i]
 		pct := percent(item.Size, m.current.Size)
+		name := label(item)
+		if nameW > 0 {
+			name = truncateStart(name, nameW)
+		}
 		line := fmt.Sprintf("%-12s %5s%% %-12s %s",
 			analyzer.PrettySize(item.Size),
 			pct,
 			bar(item.Size, maxSize, 12),
-			label(item),
+			name,
 		)
 		if m.trashed[item.Path] {
 			line = common.TrashedStyle.Render(line)
@@ -1043,12 +1195,18 @@ func (m *Model) View() string {
 		} else if i == m.selected {
 			line = common.SelectStyle.Render(line)
 		}
-		b.WriteString(line + "\n")
+		lb.WriteString(line + "\n")
+	}
+
+	if preview {
+		b.WriteString(lipgloss.JoinHorizontal(lipgloss.Top, lb.String(), "  ", m.previewPane()))
+	} else {
+		b.WriteString(lb.String())
 	}
 
 	hints := []string{
-		"[j/k/↓/↑] nav", "[enter/l] descend", "[backspace/h/u] up",
-		"[d] mark", "[x] trash", "[m] move", "[r] restore", "[Z] undo",
+		"[j/k/↓/↑] nav", "[pgup/pgdn] page", "[wheel] scroll", "[enter/l] descend", "[backspace/h/u] up",
+		"[d] mark", "[v] preview", "[x] trash", "[m] move", "[r] restore", "[Z] undo",
 		"[a] analyze dir", "[A] analyze selection", "[P] deps", "[D] Docker", "[M] Models", "[o] recent", "[/] filter", "[s] sort", "[c] clear", "[?] help", "[q] quit",
 	}
 	b.WriteString("\n" + common.FormatHelpBar(m.width, hints) + "\n")
@@ -1078,9 +1236,12 @@ func (m *Model) helpView() string {
 		"Dua-style browser key bindings",
 		"",
 		"  j/k or ↓/↑   navigate items",
+		"  pgup/pgdn    page through list",
+		"  mouse wheel  scroll list",
 		"  enter/l      descend into directory",
 		"  backspace/h/u/esc  go to parent directory",
 		"  d            mark/unmark selected item",
+		"  v            toggle file preview pane (wide terminals)",
 		"  s            cycle sort order (size, name, access, modified)",
 		"  x            preview trash for marked items (or selected)",
 		"  m            preview move for marked items (or selected) to external drive",
@@ -1210,7 +1371,7 @@ func (m *Model) analyzerView() string {
 		b.WriteString(line + "\n")
 	}
 
-	hints := []string{"[j/k/down/up] nav", "[tab/←/→] filter", "[0] clear filter", "[c] clear marks", "[space] mark", "[d] trash marked", "[esc] back", "[q] quit"}
+	hints := []string{"[j/k/down/up] nav", "[pgup/pgdn] page", "[wheel] scroll", "[tab/←/→] filter", "[0] clear filter", "[c] clear marks", "[space] mark", "[d] trash marked", "[esc] back", "[q] quit"}
 	b.WriteString("\n" + common.FormatHelpBar(m.width, hints) + "\n")
 	return b.String()
 }
@@ -1355,6 +1516,101 @@ func (m *Model) visibleRangeWithSelected(n, sel int) (int, int) {
 		end = n
 	}
 	return start, end
+}
+
+// previewPane renders a side pane with details and, for text files, a content
+// preview of the currently selected item. It is only rendered when the
+// terminal is wide enough for the previewMinWidth threshold.
+func (m *Model) previewPane() string {
+	item := m.selectedItem()
+	if item == nil {
+		return ""
+	}
+
+	var lines []string
+	lines = append(lines, common.HeaderStyle.Render("Preview"))
+	lines = append(lines, "")
+
+	if item.IsDir {
+		lines = append(lines, "Directory")
+		lines = append(lines, "Size: "+analyzer.PrettySize(item.Size))
+		lines = append(lines, fmt.Sprintf("Items: %d", len(item.Children)))
+		lines = append(lines, "Path: "+item.Path)
+	} else {
+		lines = append(lines, "File")
+		lines = append(lines, "Size: "+analyzer.PrettySize(item.Size))
+		if !item.ModTime.IsZero() {
+			lines = append(lines, "Modified: "+item.ModTime.Format("2006-01-02 15:04"))
+		}
+		lines = append(lines, "Path: "+item.Path)
+		lines = append(lines, "")
+		content, truncated := m.filePreview(item.Path)
+		lines = append(lines, content...)
+		if truncated {
+			lines = append(lines, "...")
+		}
+	}
+
+	// Cap the whole pane to the list height so it never overflows the view,
+	// keeping a trailing ellipsis to indicate more content.
+	if maxLines := m.pageSize(); len(lines) > maxLines {
+		lines = append(lines[:maxLines-1], "...")
+	}
+
+	// The border is drawn outside the width in lipgloss, so cap the content
+	// width to leave room for it.
+	pw := previewPaneWidth - 2
+	out := make([]string, 0, len(lines))
+	for i, l := range lines {
+		s := truncateStart(l, pw)
+		// Style the header after truncation so rune slicing never corrupts
+		// ANSI escape codes.
+		if i == 0 {
+			s = common.HeaderStyle.Render(s)
+		}
+		out = append(out, s)
+	}
+	return lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		Width(pw).
+		Render(strings.Join(out, "\n"))
+}
+
+// truncateStart shortens s to at most n runes, keeping the beginning of the
+// string. Unlike common.Truncate (which keeps the end for path readability),
+// this is used for file names and preview content where the start matters.
+func truncateStart(s string, n int) string {
+	r := []rune(s)
+	if len(r) <= n {
+		return s
+	}
+	if n <= 3 {
+		return "..."
+	}
+	return string(r[:n-3]) + "..."
+}
+
+// filePreview returns the file's text lines (up to previewMaxBytes) and
+// whether the content was cut short. Binary, empty, and unreadable files
+// produce a short notice line instead.
+func (m *Model) filePreview(path string) ([]string, bool) {
+	f, err := os.Open(path)
+	if err != nil {
+		return []string{"(cannot read)"}, false
+	}
+	defer f.Close()
+
+	data, err := io.ReadAll(io.LimitReader(f, previewMaxBytes))
+	if err != nil {
+		return []string{"(cannot read)"}, false
+	}
+	if len(data) == 0 {
+		return []string{"(empty file)"}, false
+	}
+	if bytes.IndexByte(data, 0) >= 0 {
+		return []string{"(binary file)"}, false
+	}
+	return strings.Split(string(data), "\n"), len(data) >= previewMaxBytes
 }
 
 func label(item *analyzer.Entry) string {
@@ -1570,6 +1826,10 @@ func (m *Model) handleDepsKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if m.depsSelected < len(m.depsList)-1 {
 			m.depsSelected++
 		}
+	case "pgup", "ctrl+b":
+		m.pageDeps(-1)
+	case "pgdown", "ctrl+f":
+		m.pageDeps(1)
 	case "d":
 		dep := m.selectedDep()
 		if dep != nil {
@@ -1937,7 +2197,7 @@ func RunWithScan(paths []string, ignore []string, ignoreHidden bool, includeVCS 
 	m.ignoreHidden = ignoreHidden
 	m.ignorePaths = ignore
 	m.scanPaths = paths
-	p := tea.NewProgram(m)
+	p := tea.NewProgram(m, tea.WithMouseCellMotion())
 	go func() {
 		defer cancel()
 		scanner := analyzer.NewScanner(ignore, ignoreHidden, progressInterval, includeVCS)
