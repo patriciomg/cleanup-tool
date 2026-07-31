@@ -241,16 +241,14 @@ jobs:
     runs-on: macos-latest
 
     steps:
-      - name: Checkout Homebrew tap repository
-        uses: actions/checkout@v4
-        with:
-          repository: patriciomg/homebrew-cleanup-tool
-          # actions/checkout requires the path to be inside the workspace;
-          # this resolves to ${{ github.workspace }}/homebrew-cleanup-tool.
-          path: homebrew-cleanup-tool
-          # The default GITHUB_TOKEN is scoped to this repository only and
-          # cannot clone the tap; use the dedicated PAT (repo scope) instead.
-          token: ${{ secrets.TAP_GITHUB_TOKEN }}
+      - name: Clone Homebrew tap repository
+        run: |
+          # The tap is a public repository, so a plain git clone needs no
+          # credentials. (actions/checkout with an explicit token requires the
+          # TAP_GITHUB_TOKEN PAT to be set as a repository secret.)
+          git clone --depth 1 \
+            https://github.com/patriciomg/homebrew-cleanup-tool.git \
+            "${{ github.workspace }}/homebrew-cleanup-tool"
 
       - name: Audit formula in tap repository
         run: |
