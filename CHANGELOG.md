@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.7] - 2026-08-01
+
+### Changed
+
+- Release verification release: confirms the Homebrew formula auto-bump now works end-to-end with a valid `TAP_GITHUB_TOKEN`.
+
 ## [0.4.6] - 2026-08-01
 
 ### Documentation
@@ -44,7 +50,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Added export-format, benchmark-format, and help-format snapshot jobs; fixed the Homebrew formula audit job.
 
-[Unreleased]: https://github.com/patriciomg/cleanup-tool/compare/v0.4.6...main
+[Unreleased]: https://github.com/patriciomg/cleanup-tool/compare/v0.4.7...main
+[0.4.7]: https://github.com/patriciomg/cleanup-tool/compare/v0.4.6...v0.4.7
 [0.4.6]: https://github.com/patriciomg/cleanup-tool/compare/v0.4.5...v0.4.6
 [0.4.5]: https://github.com/patriciomg/cleanup-tool/compare/v0.4.4...v0.4.5
 ## [0.4.4] - 2026-07-28
