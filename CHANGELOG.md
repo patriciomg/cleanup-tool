@@ -7,6 +7,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.5] - 2026-08-01
+
+### Added
+
+- **Docker per-item browsing and pruning** — new `dockeritems` view with per-item `used-by` info, safety status, detail panel, project grouping (`g`), `i` to toggle a full label dump, and bulk selection (`space` to mark, `x` to delete marked, `c` to clear).
+- Real Docker volume sizes via a `docker system df -v` fallback when `docker volume ls` does not report sizes.
+- **Persistent undo stack** (`Z`) with move-back and a cross-device `rsync` fallback, persisted across restarts.
+- External-volume Trash support with Finder conflict handling.
+- macOS notification helpers for completed operations.
+- Recent operations tracking (`o` key).
+- **VCS directories skipped by default** — new `-vcs` flag and `include_vcs` config option to re-enable scanning `.git`, `.hg`, etc.
+- Markdown, HTML, and plain-text export formats.
+- Expanded `deps` default targets and a new `deps_targets` config option.
+- **Preview pane** (`v`), paging keys (PgUp/PgDn / Ctrl+B/Ctrl+F), and mouse-wheel scrolling in both TUI styles.
+- Persistent sort-order preference across sessions.
+- `internal/defaults` package; `internal/config` no longer imports `internal/deps`.
+
+### Fixed
+
+- Analyzer age check now uses the older of access/modification time.
+- `deps -help` works even with a corrupted `config.json` (config load moved after flag parsing).
+
+### Documentation
+
+- New README sections: Performance, Benchmark mode, Exporting results, Docker disk usage, Dependency directories, Saved rules, Scheduling, Trash & undo.
+- Added CONTRIBUTING.md, SECURITY.md, Code of Conduct, issue templates, and PR template.
+
+### CI
+
+- Added export-format, benchmark-format, and help-format snapshot jobs; fixed the Homebrew formula audit job.
+
+[Unreleased]: https://github.com/patriciomg/cleanup-tool/compare/v0.4.5...main
+[0.4.5]: https://github.com/patriciomg/cleanup-tool/compare/v0.4.4...v0.4.5
 ## [0.4.4] - 2026-07-28
 
 ### Fixed
