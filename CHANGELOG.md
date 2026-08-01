@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.6] - 2026-08-01
+
+### Documentation
+
+- Expanded `docs/releasing.md` with a full section on creating, verifying, and rotating the `TAP_GITHUB_TOKEN` secret used by the release workflow's Homebrew formula auto-bump, plus the manual SSH bump fallback.
+
 ## [0.4.5] - 2026-08-01
 
 ### Added
@@ -38,7 +44,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Added export-format, benchmark-format, and help-format snapshot jobs; fixed the Homebrew formula audit job.
 
-[Unreleased]: https://github.com/patriciomg/cleanup-tool/compare/v0.4.5...main
+[Unreleased]: https://github.com/patriciomg/cleanup-tool/compare/v0.4.6...main
+[0.4.6]: https://github.com/patriciomg/cleanup-tool/compare/v0.4.5...v0.4.6
 [0.4.5]: https://github.com/patriciomg/cleanup-tool/compare/v0.4.4...v0.4.5
 ## [0.4.4] - 2026-07-28
 
